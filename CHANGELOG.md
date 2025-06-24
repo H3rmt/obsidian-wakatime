@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/H3rmt/obsidian-wakatime/compare/1.2.0...1.2.1) (2025-06-24)
+
+
+### Bug Fixes
+
+* update ci ([1bd4ec5](https://github.com/H3rmt/obsidian-wakatime/commit/1bd4ec571882e8e216bdc328c5bdb4dda6e48138))
+
 ## [1.2.0](https://github.com/H3rmt/obsidian-wakatime/compare/1.2.0...1.2.0) (2025-06-24)
 
 

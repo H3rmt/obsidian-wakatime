@@ -1,6 +1,6 @@
 {
   "name": "obsidian-wakatime",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Automatic time tracking and metrics generated from your Obsidian usage activity.",
   "main": "main.js",
   "packageManager": "pnpm@9.15.0",
