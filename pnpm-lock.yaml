@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       adm-zip:
-        specifier: 0.5.9
-        version: 0.5.9
+        specifier: 0.5.16
+        version: 0.5.16
       obsidian:
         specifier: ^1.8.7
         version: 1.8.7(@codemirror/state@6.5.2)(@codemirror/view@6.37.2)
@@ -19,8 +19,8 @@ importers:
         version: 5.0.0
     devDependencies:
       '@types/adm-zip':
-        specifier: 0.4.34
-        version: 0.4.34
+        specifier: 0.5.7
+        version: 0.5.7
       '@types/node':
         specifier: 16.18.126
         version: 16.18.126
@@ -195,8 +195,8 @@ packages:
   '@marijn/find-cluster-break@1.0.2':
     resolution: {integrity: sha512-l0h88YhZFyKdXIFNfSWpyjStDjGHwZ/U7iobcK1cQQD8sejsONdQtTVU+1wVN1PBw40PiiHB1vA5S7VTfQiP9g==}
 
-  '@types/adm-zip@0.4.34':
-    resolution: {integrity: sha512-8ToYLLAYhkRfcmmljrKi22gT2pqu7hGMDtORP1emwIEGmgUTZOsaDjzWFzW5N2frcFRz/50CWt4zA1CxJ73pmQ==}
+  '@types/adm-zip@0.5.7':
+    resolution: {integrity: sha512-DNEs/QvmyRLurdQPChqq0Md4zGvPwHerAJYWk9l2jCbD1VPpnzRJorOdiq4zsw09NFbYnhfsoEhWtxIzXpn2yw==}
 
   '@types/codemirror@5.60.8':
     resolution: {integrity: sha512-VjFgDF/eB+Aklcy15TtOTLQeMjTo07k7KAjql8OK5Dirr7a6sJY4T1uVBDuTVG9VEmn1uUsohOpYnVfgC6/jyw==}
@@ -213,9 +213,9 @@ packages:
   '@types/which@3.0.4':
     resolution: {integrity: sha512-liyfuo/106JdlgSchJzXEQCVArk0CvevqPote8F8HgWgJ3dRCcTHgJIsLDuee0kxk/mhbInzIZk3QWSZJ8R+2w==}
 
-  adm-zip@0.5.9:
-    resolution: {integrity: sha512-s+3fXLkeeLjZ2kLjCBwQufpI5fuN+kIGBxu6530nVQZGVol0d7Y/M88/xw9HGGUcJjKf8LutN3VPRUBq6N7Ajg==}
-    engines: {node: '>=6.0'}
+  adm-zip@0.5.16:
+    resolution: {integrity: sha512-TGw5yVi4saajsSEgz25grObGHEUaDrniwvA2qwSC060KfqGPdglhvPMA2lPIoxs3PQIItj2iag35fONcQqgUaQ==}
+    engines: {node: '>=12.0'}
 
   crelt@1.0.6:
     resolution: {integrity: sha512-VQ2MBenTq1fWZUH9DJNGti7kKv6EeAuYr3cLwxUWhIu1baTaXh4Ib5W2CqHVqib4/MqbYGJqiL3Zb8GJZr3l4g==}
@@ -344,7 +344,7 @@ snapshots:
 
   '@marijn/find-cluster-break@1.0.2': {}
 
-  '@types/adm-zip@0.4.34':
+  '@types/adm-zip@0.5.7':
     dependencies:
       '@types/node': 16.18.126
 
@@ -362,7 +362,7 @@ snapshots:
 
   '@types/which@3.0.4': {}
 
-  adm-zip@0.5.9: {}
+  adm-zip@0.5.16: {}
 
   crelt@1.0.6: {}
 
