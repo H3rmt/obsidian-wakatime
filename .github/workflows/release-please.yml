@@ -5,6 +5,9 @@ on:
 
 name: release-please
 
+permissions:
+  contents: write
+
 jobs:
   release-please:
     runs-on: ubuntu-latest
@@ -13,16 +16,40 @@ jobs:
         id: release
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-          release-type: node
-      - name: Build Artifact
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - uses: actions/checkout@v4
         if: ${{ steps.release.outputs.release_created }}
-        run: npm run build
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        if: ${{ steps.release.outputs.release_created }}
+      - name: Add min version
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          set -euxo pipefail
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          node version-bump.mjs ${{ steps.release.outputs.tag_name }}
+          git add manifest.json versions.json
+          git commit -m "chore: update versions for ${{ steps.release.outputs.tag_name }}"
+          git tag --delete ${{ steps.release.outputs.tag_name  }}
+          git push --delete origin ${{ steps.release.outputs.tag_name  }}
+          git tag ${{ steps.release.outputs.tag_name  }}
+          git push --tags origin
       - name: Upload Release Artifact
         if: ${{ steps.release.outputs.release_created }}
         run: |
+          set -euxo pipefail
+          pnpm install
+          pnpm build
           releaseNotes=$(gh release view ${{ steps.release.outputs.tag_name }} --json body -q .body)
-          newNotes="# Replace `.obsidian/plugins/obsidian-wakatime/main.js` with the attached main.js\n\n$releaseNotes"
-          gh release edit ${{ steps.release.outputs.tag_name }} -n "$newNotes"
+          newNotes=$'## Replace contents of `.obsidian/plugins/obsidian-wakatime` with the attached files or the zip file contents\n\n'"$releaseNotes"
+          gh release edit ${{ steps.release.outputs.tag_name }} -n "$newNotes" --latest --draft=false
           gh release upload ${{ steps.release.outputs.tag_name }} ./dist/main.js
+          gh release upload ${{ steps.release.outputs.tag_name }} ./styles.css
+          gh release upload ${{ steps.release.outputs.tag_name }} ./manifest.json
+          zip -j /tmp/release.zip ./dist/main.js ./styles.css ./manifest.json
+          gh release upload ${{ steps.release.outputs.tag_name }} /tmp/release.zip
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
