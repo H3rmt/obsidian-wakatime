@@ -15,14 +15,14 @@
   "author": "",
   "license": "BSD",
   "dependencies": {
-    "obsidian": "^1.8.7",
     "adm-zip": "0.5.9",
+    "obsidian": "^1.8.7",
     "which": "5.0.0"
   },
   "devDependencies": {
     "@types/adm-zip": "0.4.34",
     "@types/node": "16.18.126",
-    "@types/which": "2.0.2",
+    "@types/which": "^3.0.4",
     "esbuild": "0.14.47",
     "obsidian": "^1.8.7",
     "prettier": "2.6.0",
