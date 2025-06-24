@@ -14,9 +14,10 @@ jobs:
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           release-type: node
+      - uses: pnpm/action-setup@v4
       - name: Build Artifact
         if: ${{ steps.release.outputs.release_created }}
-        run: npm run build
+        run: pnpm install && pnpm build
       - name: Upload Release Artifact
         if: ${{ steps.release.outputs.release_created }}
         run: |
