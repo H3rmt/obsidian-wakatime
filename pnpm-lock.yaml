@@ -25,7 +25,7 @@ importers:
         specifier: 16.18.126
         version: 16.18.126
       '@types/which':
-        specifier: ^3.0.4
+        specifier: 3.0.4
         version: 3.0.4
       esbuild:
         specifier: 0.25.5
