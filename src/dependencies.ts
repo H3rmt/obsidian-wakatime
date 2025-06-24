@@ -3,12 +3,11 @@ import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import * as request from 'request';
-import * as which from 'which';
+import which from 'which';
 
-import { Options, OptionSetting } from './options';
-import { Desktop } from './desktop';
-import { Logger } from './logger';
+import {Options, OptionSetting} from './options';
+import {Desktop} from './desktop';
+import {Logger} from './logger';
 
 export class Dependencies {
   private options: Options;
@@ -34,7 +33,7 @@ export class Dependencies {
 
     const folder = path.join(Desktop.getHomeDirectory(), '.wakatime');
     try {
-      fs.mkdirSync(folder, { recursive: true });
+      fs.mkdirSync(folder, {recursive: true});
       this.resourcesLocation = folder;
     } catch (e) {
       this.resourcesLocation = "./.wakatime";
@@ -64,7 +63,7 @@ export class Dependencies {
     if (this.cliLocationGlobal) return this.cliLocationGlobal;
 
     const binaryName = `wakatime-cli${Desktop.isWindows() ? '.exe' : ''}`;
-    const path = which.sync(binaryName, { nothrow: true });
+    const path = which.sync(binaryName, {nothrow: true});
     if (path) {
       this.cliLocationGlobal = path;
       this.logger.debug(`Using global wakatime-cli location: ${path}`);
@@ -134,81 +133,68 @@ export class Dependencies {
       callback(this.latestCliVersion);
       return;
     }
-    this.options.getSetting('settings', 'proxy', false, (proxy: OptionSetting) => {
-      this.options.getSetting('settings', 'no_ssl_verify', false, (noSSLVerify: OptionSetting) => {
-        this.options.getSetting(
-          'internal',
-          'cli_version_last_modified',
-          true,
-          (modified: OptionSetting) => {
-            this.options.getSetting('internal', 'cli_version', true, (version: OptionSetting) => {
-              this.options.getSetting('settings', 'alpha', false, (alpha: OptionSetting) => {
-                const options: request.OptionsWithUrl = {
-                  url:
-                    alpha.value == 'true'
-                      ? this.githubReleasesAlphaUrl
-                      : this.githubReleasesStableUrl,
-                  json: true,
-                  headers: {
-                    'User-Agent': 'github.com/wakatime/vscode-wakatime',
-                  },
-                };
-                if (proxy.value) {
-                  this.logger.debug(`Using Proxy: ${proxy.value}`);
-                  options['proxy'] = proxy.value;
-                }
-                if (noSSLVerify.value === 'true') options['strictSSL'] = false;
-                if (modified.value && version.value && options.headers)
-                  options.headers['If-Modified-Since'] = modified.value;
-                try {
-                  request.get(options, (error, response, json) => {
-                    if (
-                      !error &&
-                      response &&
-                      (response.statusCode == 200 || response.statusCode == 304)
-                    ) {
-                      this.logger.debug(`GitHub API Response ${response.statusCode}`);
-                      if (response.statusCode == 304) {
-                        this.latestCliVersion = version.value;
-                        callback(this.latestCliVersion);
-                        return;
-                      }
-                      this.latestCliVersion =
-                        alpha.value == 'true' ? json[0]['tag_name'] : json['tag_name'];
-                      this.logger.debug(
-                        `Latest wakatime-cli version from GitHub: ${this.latestCliVersion}`,
+    this.options.getSetting(
+      'internal',
+      'cli_version_last_modified',
+      true,
+      (modified: OptionSetting) => {
+        this.options.getSetting('internal', 'cli_version', true, (version: OptionSetting) => {
+          this.options.getSetting('settings', 'alpha', false, (alpha: OptionSetting) => {
+            const options: RequestInit = {
+              method: 'GET',
+              headers: {
+                'User-Agent': 'github.com/wakatime/vscode-wakatime',
+                'Accept': 'application/json',
+                'If-Modified-Since': modified.value && version.value ? modified.value : '',
+              },
+            };
+            try {
+              fetch(
+                alpha.value == 'true' ? this.githubReleasesAlphaUrl : this.githubReleasesStableUrl,
+                options
+              ).then((response) => {
+                if (response.ok || response.status === 304) {
+                  this.logger.debug(`GitHub API Response ${response.status}`);
+                  if (response.status === 304) {
+                    this.latestCliVersion = version.value;
+                    callback(this.latestCliVersion);
+                    return;
+                  }
+
+                  response.json().then((json) => {
+                    this.latestCliVersion =
+                      alpha.value == 'true' ? json[0]['tag_name'] : json['tag_name'];
+
+                    this.logger.debug(
+                      `Latest wakatime-cli version from GitHub: ${this.latestCliVersion}`
+                    );
+
+                    const lastModified = response.headers.get('last-modified');
+                    if (lastModified && this.latestCliVersion) {
+                      this.options.setSettings(
+                        'internal',
+                        [
+                          {key: 'cli_version', value: this.latestCliVersion},
+                          {key: 'cli_version_last_modified', value: lastModified}
+                        ],
+                        true
                       );
-                      const lastModified = response.headers['last-modified'] as string;
-                      if (lastModified && this.latestCliVersion) {
-                        this.options.setSettings(
-                          'internal',
-                          [
-                            { key: 'cli_version', value: this.latestCliVersion },
-                            { key: 'cli_version_last_modified', value: lastModified },
-                          ],
-                          true,
-                        );
-                      }
-                      callback(this.latestCliVersion);
-                    } else {
-                      if (response) {
-                        this.logger.warn(`GitHub API Response ${response.statusCode}: ${error}`);
-                      } else {
-                        this.logger.warn(`GitHub API Response Error: ${error}`);
-                      }
-                      callback('');
                     }
-                  });
-                } catch (e) {
-                  this.logger.warnException(e);
+                    callback(this.latestCliVersion);
+                  })
+                } else {
+                  this.logger.warn(`GitHub API Response ${response.status}`);
                   callback('');
                 }
-              });
-            });
-          },
-        );
-      });
-    });
+              })
+            } catch (e) {
+              this.logger.warnException(e);
+              callback('');
+            }
+          });
+        });
+      },
+    );
   }
 
   private installCli(callback: () => void): void {
@@ -237,8 +223,9 @@ export class Dependencies {
   private isSymlink(file: string): boolean {
     try {
       return fs.lstatSync(file).isSymbolicLink();
-    // eslint-disable-next-line no-empty
-    } catch (_) {}
+      // eslint-disable-next-line no-empty
+    } catch (_) {
+    }
     return false;
   }
 
@@ -293,33 +280,31 @@ export class Dependencies {
     callback: () => void,
     error: () => void,
   ): void {
-    this.options.getSetting('settings', 'proxy', false, (proxy: OptionSetting) => {
-      this.options.getSetting('settings', 'no_ssl_verify', false, (noSSLVerify: OptionSetting) => {
-				const options: request.OptionsWithUrl = { url: url };
-        if (proxy.value) {
-          this.logger.debug(`Using Proxy: ${proxy.value}`);
-          options['proxy'] = proxy.value;
-        }
-        if (noSSLVerify.value === 'true') options['strictSSL'] = false;
+    const options: RequestInit = {
+      method: 'GET',
+    };
+    fetch(url, options).then(response => {
+      if (!response.ok) {
+        this.logger.warn(`Failed to download ${url}`);
+        this.logger.warn(`Status: ${response.status}`);
+        error();
+        return;
+      }
+      response.arrayBuffer().then(arrayBuffer => {
         try {
-          const r = request.get(options);
-          r.on('error', (e) => {
-            this.logger.warn(`Failed to download ${url}`);
-            this.logger.warn(e.toString());
-            error();
-          });
-          const out = fs.createWriteStream(outputFile);
-          r.pipe(out);
-          r.on('end', () => {
-            out.on('finish', () => {
-              callback();
-            });
-          });
-        } catch (e) {
-          this.logger.warnException(e);
+          fs.writeFileSync(outputFile, Buffer.from(arrayBuffer));
           callback();
+        } catch (err) {
+          this.logger.warnException(err);
+          error();
         }
+      }).catch(err => {
+        this.logger.warnException(err);
+        error();
       });
+    }).catch(e => {
+      this.logger.warnException(e);
+      callback();
     });
   }
 
@@ -382,18 +367,11 @@ export class Dependencies {
   }
 
   private reportMissingPlatformSupport(osname: string, architecture: string): void {
-    const url = `https://api.wakatime.com/api/v1/cli-missing?osname=${osname}&architecture=${architecture}&plugin=vscode`;
-    this.options.getSetting('settings', 'proxy', false, (proxy: OptionSetting) => {
-      this.options.getSetting('settings', 'no_ssl_verify', false, (noSSLVerify: OptionSetting) => {
-				const options: request.OptionsWithUrl = { url: url };
-        if (proxy.value) options['proxy'] = proxy.value;
-        if (noSSLVerify.value === 'true') options['strictSSL'] = false;
-        try {
-          request.get(options);
-        // eslint-disable-next-line no-empty
-        } catch (e) { }
-      });
-    });
+    const url = `https://api.wakatime.com/api/v1/cli-missing?osname=${osname}&architecture=${architecture}&plugin=obsidian`;
+    const options: RequestInit = {
+      method: 'GET',
+    };
+    fetch(url, options).catch()
   }
 
   private randStr(): string {
