@@ -14,7 +14,10 @@ jobs:
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           release-type: node
+      - uses: actions/checkout@v4
+        if: ${{ steps.release.outputs.release_created }}
       - uses: pnpm/action-setup@v4
+        if: ${{ steps.release.outputs.release_created }}
       - name: Build Artifact
         if: ${{ steps.release.outputs.release_created }}
         run: pnpm install && pnpm build
@@ -22,8 +25,12 @@ jobs:
         if: ${{ steps.release.outputs.release_created }}
         run: |
           releaseNotes=$(gh release view ${{ steps.release.outputs.tag_name }} --json body -q .body)
-          newNotes="# Replace `.obsidian/plugins/obsidian-wakatime/main.js` with the attached main.js\n\n$releaseNotes"
+          newNotes="# Replace contents of `.obsidian/plugins/obsidian-wakatime` with the attached files of zip file\n\n$releaseNotes"
           gh release edit ${{ steps.release.outputs.tag_name }} -n "$newNotes"
           gh release upload ${{ steps.release.outputs.tag_name }} ./dist/main.js
+          gh release upload ${{ steps.release.outputs.tag_name }} ./styles.css
+          gh release upload ${{ steps.release.outputs.tag_name }} ./manifest.json
+          zip -j /tmp/release.zip ./dist/main.js ./styles.css ./manifest.json
+          gh release upload ${{ steps.release.outputs.tag_name }} /tmp/release.zip
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
