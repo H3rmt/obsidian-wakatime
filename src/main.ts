@@ -173,6 +173,7 @@ export default class WakaTime extends Plugin {
 
     const args: string[] = [];
 
+    args.push('--category', 'writing docs');
     args.push('--entity', Utils.quote(file));
     args.push('--project', String(this.app.vault.getName()))
 
