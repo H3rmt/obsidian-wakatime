@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.3.0](https://github.com/H3rmt/obsidian-wakatime/compare/1.2.0...1.3.0) (2025-06-24)
+
+
+### Features
+
+* release workflow ([86b6a45](https://github.com/H3rmt/obsidian-wakatime/commit/86b6a45db9898e4b88037e42154e8bd1d333f632))
+* switch to pnpm ([3c8864a](https://github.com/H3rmt/obsidian-wakatime/commit/3c8864a77597064bc5fc884189ca8c78ca73e43f))
+
+
+### Bug Fixes
+
+* also trigger event on scroll ([359ac06](https://github.com/H3rmt/obsidian-wakatime/commit/359ac06da34369614c166f56d5f9aad08a9340fb))
+* package updates ([3c8864a](https://github.com/H3rmt/obsidian-wakatime/commit/3c8864a77597064bc5fc884189ca8c78ca73e43f))
+* remove request dependency (now ignores SSL and Proxy settings from wakatime) ([86b6a45](https://github.com/H3rmt/obsidian-wakatime/commit/86b6a45db9898e4b88037e42154e8bd1d333f632))
+
 ## [1.2.0](https://github.com/H3rmt/obsidian-wakatime/compare/1.2.0...1.2.0) (2025-06-24)
 
 
