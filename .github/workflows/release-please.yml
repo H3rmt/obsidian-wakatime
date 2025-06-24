@@ -20,6 +20,8 @@ jobs:
           manifest-file: .release-please-manifest.json
       - uses: actions/checkout@v4
         if: ${{ steps.release.outputs.release_created }}
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         if: ${{ steps.release.outputs.release_created }}
       - name: Add min version
