@@ -25,6 +25,7 @@ jobs:
       - name: Add min version
         if: ${{ steps.release.outputs.release_created }}
         run: |
+          set -euxo pipefail
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           node version-bump.mjs ${{ steps.release.outputs.tag_name }}
