@@ -177,6 +177,9 @@ export default class WakaTime extends Plugin {
     args.push('--entity', Utils.quote(file));
     args.push('--project', String(this.app.vault.getName()))
 
+    // Use the exact time when the event occurred, not "now".
+    args.push('--time', (time / 1000).toFixed(6));
+
     const user_agent = 'obsidian/' + apiVersion + ' obsidian-wakatime/' + this.manifest.version;
     args.push('--plugin', Utils.quote(user_agent));
 
