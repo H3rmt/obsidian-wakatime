@@ -3,7 +3,7 @@
   "always-update": true,
   "include-v-in-tag": false,
   "include-component-in-tag": false,
-  "bootstrap-sha": "181fcc7c4d177872d7d842a1cf319253adac6322",
+  "bootstrap-sha": "3b14075927f97d9bb3e59fdf45abdaca8ee7adfd",
   "packages": {
     ".": {
       "release-type": "node",
