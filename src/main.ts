@@ -1,12 +1,22 @@
-import { apiVersion, App, EditorPosition, FileSystemAdapter, FileView, MarkdownView, Modal, Plugin, Setting, TextComponent } from 'obsidian';
-import * as child_process from 'child_process';
-
-import { Options, OptionSetting } from './options';
-import { Logger } from './logger';
+import * as child_process from 'node:child_process';
+import {
+  type App,
+  apiVersion,
+  type EditorPosition,
+  type FileSystemAdapter,
+  FileView,
+  MarkdownView,
+  Modal,
+  Plugin,
+  Setting,
+  type TextComponent,
+} from 'obsidian';
 import { LogLevel } from './constants';
-import { Utils } from './utils';
 import { Dependencies } from './dependencies';
 import { Desktop } from './desktop';
+import { Logger } from './logger';
+import { type OptionSetting, Options } from './options';
+import { Utils } from './utils';
 
 export default class WakaTime extends Plugin {
   options: Options;
@@ -33,19 +43,31 @@ export default class WakaTime extends Plugin {
       },
     });
 
-    this.options.getSetting('settings', 'debug', false, (debug: OptionSetting) => {
-      this.logger.setLevel(debug.value == 'true' ? LogLevel.DEBUG : LogLevel.INFO);
-      this.dependencies = new Dependencies(this.options, this.logger);
+    this.options.getSetting(
+      'settings',
+      'debug',
+      false,
+      (debug: OptionSetting) => {
+        this.logger.setLevel(
+          debug.value === 'true' ? LogLevel.DEBUG : LogLevel.INFO,
+        );
+        this.dependencies = new Dependencies(this.options, this.logger);
 
-      this.options.getSetting('settings', 'disabled', false, (disabled: OptionSetting) => {
-        this.disabled = disabled.value === 'true';
-        if (this.disabled) {
-          return;
-        }
+        this.options.getSetting(
+          'settings',
+          'disabled',
+          false,
+          (disabled: OptionSetting) => {
+            this.disabled = disabled.value === 'true';
+            if (this.disabled) {
+              return;
+            }
 
-        this.initializeDependencies();
-      });
-    });
+            this.initializeDependencies();
+          },
+        );
+      },
+    );
   }
 
   onunload() {}
@@ -113,9 +135,9 @@ export default class WakaTime extends Plugin {
 
     const file = `${(this.app.vault.adapter as FileSystemAdapter).getBasePath()}/${activeFile.path}`;
     const time: number = Date.now();
-    
+
     if (this.enoughTimePassed(time) || this.lastFile !== file) {
-      let cursor: EditorPosition|null = null
+      let cursor: EditorPosition | null = null;
       if (view instanceof MarkdownView) {
         cursor = view.editor.getCursor();
       }
@@ -136,7 +158,7 @@ export default class WakaTime extends Plugin {
     if (!text) {
       this.statusBar.setText('🕒');
     } else {
-      this.statusBar.setText('🕒 ' + text);
+      this.statusBar.setText(`🕒 ${text}`);
     }
   }
 
@@ -175,21 +197,19 @@ export default class WakaTime extends Plugin {
 
     args.push('--category', 'writing docs');
     args.push('--entity', Utils.quote(file));
-    args.push('--project', String(this.app.vault.getName()))
+    args.push('--project', String(this.app.vault.getName()));
 
     // Use the exact time when the event occurred, not "now".
     args.push('--time', (time / 1000).toFixed(6));
 
-    const user_agent = 'obsidian/' + apiVersion + ' obsidian-wakatime/' + this.manifest.version;
+    const user_agent = `obsidian/${apiVersion} obsidian-wakatime/${this.manifest.version}`;
     args.push('--plugin', Utils.quote(user_agent));
 
-    if (lineno !== undefined)
-      args.push('--lineno', String(lineno + 1));
+    if (lineno !== undefined) args.push('--lineno', String(lineno + 1));
     if (cursorpos !== undefined)
       args.push('--cursorpos', String(cursorpos + 1));
 
-    if (file.endsWith(".pdf"))
-      args.push('--language', Utils.quote("Pdf"));
+    if (file.endsWith('.pdf')) args.push('--language', Utils.quote('Pdf'));
 
     if (isWrite) args.push('--write');
 
@@ -203,20 +223,31 @@ export default class WakaTime extends Plugin {
     }
 
     const binary = this.dependencies.getCliLocation();
-    this.logger.debug(`Sending heartbeat: ${Utils.formatArguments(binary, args)}`);
+    this.logger.debug(
+      `Sending heartbeat: ${Utils.formatArguments(binary, args)}`,
+    );
     const options = Desktop.buildOptions();
-    const proc = child_process.execFile(binary, args, options, (error, stdout, stderr) => {
-      if (error != null) {
-        if (stderr && stderr.toString() != '') this.logger.error(stderr.toString());
-        if (stdout && stdout.toString() != '') this.logger.error(stdout.toString());
-        this.logger.error(error.toString());
-      }
-    });
+    const proc = child_process.execFile(
+      binary,
+      args,
+      options,
+      (error, stdout, stderr) => {
+        if (error != null) {
+          if (stderr && stderr.toString() !== '')
+            this.logger.error(stderr.toString());
+          if (stdout && stdout.toString() !== '')
+            this.logger.error(stdout.toString());
+          this.logger.error(error.toString());
+        }
+      },
+    );
     proc.on('close', (code, _signal) => {
-      if (code == 0) {
+      if (code === 0) {
         if (this.showStatusBar) this.getCodingActivity();
-        this.logger.debug(`last heartbeat sent ${Utils.formatDate(new Date())}`);
-      } else if (code == 102 || code == 112) {
+        this.logger.debug(
+          `last heartbeat sent ${Utils.formatDate(new Date())}`,
+        );
+      } else if (code === 102 || code === 112) {
         if (this.showStatusBar) {
           if (!this.showCodingActivity) this.updateStatusBarText();
           this.updateStatusBarTooltip(
@@ -226,15 +257,16 @@ export default class WakaTime extends Plugin {
         this.logger.warn(
           `Working offline (${code}); Check your ${this.options.getLogFile()} file for more details`,
         );
-      } else if (code == 103) {
+      } else if (code === 103) {
         const error_msg = `Config parsing error (103); Check your ${this.options.getLogFile()} file for more details`;
         if (this.showStatusBar) {
           this.updateStatusBarText('WakaTime Error');
           this.updateStatusBarTooltip(`WakaTime: ${error_msg}`);
         }
         this.logger.error(error_msg);
-      } else if (code == 104) {
-        const error_msg = 'Invalid Api Key (104); Make sure your Api Key is correct!';
+      } else if (code === 104) {
+        const error_msg =
+          'Invalid Api Key (104); Make sure your Api Key is correct!';
         if (this.showStatusBar) {
           this.updateStatusBarText('WakaTime Error');
           this.updateStatusBarTooltip(`WakaTime: ${error_msg}`);
@@ -257,7 +289,8 @@ export default class WakaTime extends Plugin {
     }
 
     // prevent updating if we haven't coded since last checked
-    if (this.lastFetchToday > 0 && this.lastFetchToday > this.lastHeartbeat) return;
+    if (this.lastFetchToday > 0 && this.lastFetchToday > this.lastHeartbeat)
+      return;
 
     const cutoff = Date.now() - this.fetchTodayInterval;
     if (this.lastFetchToday > cutoff) return;
@@ -273,7 +306,7 @@ export default class WakaTime extends Plugin {
   private _getCodingActivity() {
     if (!this.dependencies.isCliInstalled()) return;
 
-    const user_agent = 'obsidian/' + apiVersion + ' obsidian-wakatime/' + this.manifest.version;
+    const user_agent = `obsidian/${apiVersion} obsidian-wakatime/${this.manifest.version}`;
     const args = ['--today', '--plugin', Utils.quote(user_agent)];
 
     if (Desktop.isWindows()) {
@@ -290,13 +323,20 @@ export default class WakaTime extends Plugin {
       `Fetching coding activity for Today from api: ${Utils.formatArguments(binary, args)}`,
     );
     const options = Desktop.buildOptions();
-    const proc = child_process.execFile(binary, args, options, (error, stdout, stderr) => {
-      if (error != null) {
-        if (stderr && stderr.toString() != '') this.logger.error(stderr.toString());
-        if (stdout && stdout.toString() != '') this.logger.error(stdout.toString());
-        this.logger.error(error.toString());
-      }
-    });
+    const proc = child_process.execFile(
+      binary,
+      args,
+      options,
+      (error, stdout, stderr) => {
+        if (error != null) {
+          if (stderr && stderr.toString() !== '')
+            this.logger.error(stderr.toString());
+          if (stdout && stdout.toString() !== '')
+            this.logger.error(stdout.toString());
+          this.logger.error(error.toString());
+        }
+      },
+    );
     let output = '';
     if (proc.stdout) {
       proc.stdout.on('data', (data: string | null) => {
@@ -304,9 +344,9 @@ export default class WakaTime extends Plugin {
       });
     }
     proc.on('close', (code, _signal) => {
-      if (code == 0) {
+      if (code === 0) {
         if (this.showStatusBar) {
-          if (output && output.trim()) {
+          if (output?.trim()) {
             if (this.showCodingActivity) {
               this.updateStatusBarText(output.trim());
               this.updateStatusBarTooltip('WakaTime: Today’s coding time.');
@@ -316,10 +356,12 @@ export default class WakaTime extends Plugin {
             }
           } else {
             this.updateStatusBarText();
-            this.updateStatusBarTooltip('WakaTime: Calculating time spent today in background...');
+            this.updateStatusBarTooltip(
+              'WakaTime: Calculating time spent today in background...',
+            );
           }
         }
-      } else if (code == 102 || code == 112) {
+      } else if (code === 102 || code === 112) {
         // noop, working offline
       } else {
         const error_msg = `Error fetching today coding activity (${code}); Check your ${this.options.getLogFile()} file for more details`;
@@ -346,33 +388,38 @@ class ApiKeyModal extends Modal {
   onOpen() {
     const { contentEl } = this;
 
-    this.options.getSetting('settings', 'api_key', false, (setting: OptionSetting) => {
-      let defaultVal = setting.value;
-      if (Utils.apiKeyInvalid(defaultVal)) defaultVal = '';
+    this.options.getSetting(
+      'settings',
+      'api_key',
+      false,
+      (setting: OptionSetting) => {
+        let defaultVal = setting.value;
+        if (Utils.apiKeyInvalid(defaultVal)) defaultVal = '';
 
-      contentEl.createEl('h2', { text: 'Enter your WakaTime API Key' });
+        contentEl.createEl('h2', { text: 'Enter your WakaTime API Key' });
 
-      new Setting(contentEl).addText((text) => {
-        text.setValue(defaultVal);
-        text.inputEl.addClass('api-key-input');
-        this.input = text;
-      });
+        new Setting(contentEl).addText((text) => {
+          text.setValue(defaultVal);
+          text.inputEl.addClass('api-key-input');
+          this.input = text;
+        });
 
-      new Setting(contentEl).addButton((btn) =>
-        btn
-          .setButtonText('Save')
-          .setCta()
-          .onClick(() => {
-            const val = this.input.getValue();
-            const invalid = Utils.apiKeyInvalid(val);
-            console.log(invalid);
-            if (!invalid) {
-              this.close();
-              this.options.setSetting('settings', 'api_key', val, false);
-            }
-          }),
-      );
-    });
+        new Setting(contentEl).addButton((btn) =>
+          btn
+            .setButtonText('Save')
+            .setCta()
+            .onClick(() => {
+              const val = this.input.getValue();
+              const invalid = Utils.apiKeyInvalid(val);
+              console.log(invalid);
+              if (!invalid) {
+                this.close();
+                this.options.setSetting('settings', 'api_key', val, false);
+              }
+            }),
+        );
+      },
+    );
   }
 
   onClose() {

@@ -1,10 +1,9 @@
-import * as path from 'path';
-import * as fs from 'fs';
-
-import * as child_process from 'child_process';
-import { Utils } from './utils';
-import { Logger } from './logger';
+import * as child_process from 'node:child_process';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { Desktop } from './desktop';
+import type { Logger } from './logger';
+import { Utils } from './utils';
 
 export interface OptionSetting {
   key: string;
@@ -60,7 +59,10 @@ export class Options {
           const lines = content.split('\n');
           for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            if (this.startsWith(line.trim(), '[') && this.endsWith(line.trim(), ']')) {
+            if (
+              this.startsWith(line.trim(), '[') &&
+              this.endsWith(line.trim(), ']')
+            ) {
               currentSection = line
                 .trim()
                 .substring(1, line.trim().length - 1)
@@ -69,7 +71,10 @@ export class Options {
               const parts = line.split('=');
               const currentKey = parts[0].trim();
               if (currentKey === key && parts.length > 1) {
-                callback({ key: key, value: this.removeNulls(parts[1].trim()) });
+                callback({
+                  key: key,
+                  value: this.removeNulls(parts[1].trim()),
+                });
                 return;
               }
             }
@@ -80,121 +85,150 @@ export class Options {
     );
   }
 
-  public setSetting(section: string, key: string, val: string, internal: boolean): void {
+  public setSetting(
+    section: string,
+    key: string,
+    val: string,
+    internal: boolean,
+  ): void {
     const configFile = this.getConfigFile(internal);
-    fs.readFile(configFile, 'utf-8', (err: NodeJS.ErrnoException | null, content: string) => {
-      // ignore errors because config file might not exist yet
-      if (err) content = '';
+    fs.readFile(
+      configFile,
+      'utf-8',
+      (err: NodeJS.ErrnoException | null, content: string) => {
+        // ignore errors because config file might not exist yet
+        if (err) content = '';
 
-      const contents: string[] = [];
-      let currentSection = '';
+        const contents: string[] = [];
+        let currentSection = '';
 
-      let found = false;
-      const lines = content.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (this.startsWith(line.trim(), '[') && this.endsWith(line.trim(), ']')) {
-          if (currentSection === section && !found) {
-            contents.push(this.removeNulls(key + ' = ' + val));
-            found = true;
-          }
-          currentSection = line
-            .trim()
-            .substring(1, line.trim().length - 1)
-            .toLowerCase();
-          contents.push(this.removeNulls(line));
-        } else if (currentSection === section) {
-          const parts = line.split('=');
-          const currentKey = parts[0].trim();
-          if (currentKey === key) {
-            if (!found) {
-              contents.push(this.removeNulls(key + ' = ' + val));
+        let found = false;
+        const lines = content.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (
+            this.startsWith(line.trim(), '[') &&
+            this.endsWith(line.trim(), ']')
+          ) {
+            if (currentSection === section && !found) {
+              contents.push(this.removeNulls(`${key} = ${val}`));
               found = true;
+            }
+            currentSection = line
+              .trim()
+              .substring(1, line.trim().length - 1)
+              .toLowerCase();
+            contents.push(this.removeNulls(line));
+          } else if (currentSection === section) {
+            const parts = line.split('=');
+            const currentKey = parts[0].trim();
+            if (currentKey === key) {
+              if (!found) {
+                contents.push(this.removeNulls(`${key} = ${val}`));
+                found = true;
+              }
+            } else {
+              contents.push(this.removeNulls(line));
             }
           } else {
             contents.push(this.removeNulls(line));
           }
-        } else {
-          contents.push(this.removeNulls(line));
         }
-      }
 
-      if (!found) {
-        if (currentSection !== section) {
-          contents.push('[' + section + ']');
+        if (!found) {
+          if (currentSection !== section) {
+            contents.push(`[${section}]`);
+          }
+          contents.push(this.removeNulls(`${key} = ${val}`));
         }
-        contents.push(this.removeNulls(key + ' = ' + val));
-      }
 
-      fs.writeFile(configFile as string, contents.join('\n'), (err) => {
-        if (err) throw err;
-      });
-    });
+        fs.writeFile(configFile as string, contents.join('\n'), (err) => {
+          if (err) throw err;
+        });
+      },
+    );
   }
 
-  public setSettings(section: string, settings: OptionSetting[], internal: boolean): void {
+  public setSettings(
+    section: string,
+    settings: OptionSetting[],
+    internal: boolean,
+  ): void {
     const configFile = this.getConfigFile(internal);
-    fs.readFile(configFile, 'utf-8', (err: NodeJS.ErrnoException | null, content: string) => {
-      // ignore errors because config file might not exist yet
-      if (err) content = '';
+    fs.readFile(
+      configFile,
+      'utf-8',
+      (err: NodeJS.ErrnoException | null, content: string) => {
+        // ignore errors because config file might not exist yet
+        if (err) content = '';
 
-      const contents: string[] = [];
-      let currentSection = '';
+        const contents: string[] = [];
+        let currentSection = '';
 
-      const found: FoundOption = {};
-      const lines = content.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (this.startsWith(line.trim(), '[') && this.endsWith(line.trim(), ']')) {
-          if (currentSection === section) {
+        const found: FoundOption = {};
+        const lines = content.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (
+            this.startsWith(line.trim(), '[') &&
+            this.endsWith(line.trim(), ']')
+          ) {
+            if (currentSection === section) {
+              settings.forEach((setting) => {
+                if (!found[setting.key]) {
+                  contents.push(
+                    this.removeNulls(`${setting.key} = ${setting.value}`),
+                  );
+                  found[setting.key] = true;
+                }
+              });
+            }
+            currentSection = line
+              .trim()
+              .substring(1, line.trim().length - 1)
+              .toLowerCase();
+            contents.push(this.removeNulls(line));
+          } else if (currentSection === section) {
+            const parts = line.split('=');
+            const currentKey = parts[0].trim();
+            let keepLineUnchanged = true;
             settings.forEach((setting) => {
-              if (!found[setting.key]) {
-                contents.push(this.removeNulls(setting.key + ' = ' + setting.value));
-                found[setting.key] = true;
+              if (currentKey === setting.key) {
+                keepLineUnchanged = false;
+                if (!found[setting.key]) {
+                  contents.push(
+                    this.removeNulls(`${setting.key} = ${setting.value}`),
+                  );
+                  found[setting.key] = true;
+                }
               }
             });
-          }
-          currentSection = line
-            .trim()
-            .substring(1, line.trim().length - 1)
-            .toLowerCase();
-          contents.push(this.removeNulls(line));
-        } else if (currentSection === section) {
-          const parts = line.split('=');
-          const currentKey = parts[0].trim();
-          let keepLineUnchanged = true;
-          settings.forEach((setting) => {
-            if (currentKey === setting.key) {
-              keepLineUnchanged = false;
-              if (!found[setting.key]) {
-                contents.push(this.removeNulls(setting.key + ' = ' + setting.value));
-                found[setting.key] = true;
-              }
+            if (keepLineUnchanged) {
+              contents.push(this.removeNulls(line));
             }
-          });
-          if (keepLineUnchanged) {
+          } else {
             contents.push(this.removeNulls(line));
           }
-        } else {
-          contents.push(this.removeNulls(line));
         }
-      }
 
-      settings.forEach((setting) => {
-        if (!found[setting.key]) {
-          if (currentSection !== section) {
-            contents.push('[' + section + ']');
-            currentSection = section;
+        settings.forEach((setting) => {
+          if (!found[setting.key]) {
+            if (currentSection !== section) {
+              contents.push(`[${section}]`);
+              currentSection = section;
+            }
+            contents.push(
+              this.removeNulls(`${setting.key} = ${setting.value}`),
+            );
+            found[setting.key] = true;
           }
-          contents.push(this.removeNulls(setting.key + ' = ' + setting.value));
-          found[setting.key] = true;
-        }
-      });
+        });
 
-      fs.writeFile(configFile as string, contents.join('\n'), (err) => {
-        if (err) throw err;
-      });
-    });
+        fs.writeFile(configFile as string, contents.join('\n'), (err) => {
+          if (err) throw err;
+        });
+      },
+    );
   }
 
   public getConfigFile(internal: boolean): string {
@@ -217,21 +251,26 @@ export class Options {
         return this.cache.api_key;
       }
       // eslint-disable-next-line no-empty
-    } catch (err) {}
+    } catch (_err) {}
 
     try {
       const apiKey = await this.getSettingAsync('settings', 'api_key');
       if (!Utils.apiKeyInvalid(apiKey)) this.cache.api_key = apiKey;
       return apiKey;
     } catch (err) {
-      this.logger.debug(`Exception while reading API Key from config file: ${err}`);
+      this.logger.debug(
+        `Exception while reading API Key from config file: ${err}`,
+      );
       return '';
     }
   }
 
   public async getApiKeyFromVaultCmd(): Promise<string> {
     try {
-      const apiKeyCmd = await this.getSettingAsync('settings', 'api_key_vault_cmd');
+      const apiKeyCmd = await this.getSettingAsync(
+        'settings',
+        'api_key_vault_cmd',
+      );
       if (!apiKeyCmd) return '';
 
       const options = Desktop.buildOptions();
@@ -249,13 +288,18 @@ export class Options {
         proc.on('close', resolve);
       });
 
-      if (exitCode) this.logger.warn(`api key vault command error (${exitCode}): ${stderr}`);
-      else if (stderr && stderr.trim()) this.logger.warn(stderr.trim());
+      if (exitCode)
+        this.logger.warn(
+          `api key vault command error (${exitCode}): ${stderr}`,
+        );
+      else if (stderr?.trim()) this.logger.warn(stderr.trim());
 
       const apiKey = stdout.toString().trim();
       return apiKey;
     } catch (err) {
-      this.logger.debug(`Exception while reading API Key Vault Cmd from config file: ${err}`);
+      this.logger.debug(
+        `Exception while reading API Key Vault Cmd from config file: ${err}`,
+      );
       return '';
     }
   }

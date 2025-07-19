@@ -5,7 +5,8 @@ export class Utils {
   }
 
   public static apiKeyInvalid(key?: string): string {
-    const err = 'Invalid api key... check https://wakatime.com/settings for your key';
+    const err =
+      'Invalid api key... check https://wakatime.com/settings for your key';
     if (!key) return err;
     // allow keys from wakapi without the waka_ prefix
     // const re = new RegExp(
@@ -37,7 +38,7 @@ export class Utils {
       ampm = 'PM';
       hour = hour - 12;
     }
-    if (hour == 0) {
+    if (hour === 0) {
       hour = 12;
     }
     const minute = date.getMinutes();
@@ -51,24 +52,25 @@ export class Utils {
     if (key) {
       newKey = key;
       if (key.length > 4)
-        newKey = 'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXX' + key.substring(key.length - 4);
+        newKey = `XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXX${key.substring(key.length - 4)}`;
     }
     return newKey;
   }
 
   public static wrapArg(arg: string): string {
-    if (arg.indexOf(' ') > -1) return '"' + arg.replace(/"/g, '\\"') + '"';
+    if (arg.indexOf(' ') > -1) return `"${arg.replace(/"/g, '\\"')}"`;
     return arg;
   }
 
   public static formatArguments(binary: string, args: string[]): string {
     const clone = args.slice(0);
-    clone.unshift(this.wrapArg(binary));
+    clone.unshift(Utils.wrapArg(binary));
     const newCmds: string[] = [];
     let lastCmd = '';
     for (let i = 0; i < clone.length; i++) {
-      if (lastCmd == '--key') newCmds.push(this.wrapArg(this.obfuscateKey(clone[i])));
-      else newCmds.push(this.wrapArg(clone[i]));
+      if (lastCmd === '--key')
+        newCmds.push(Utils.wrapArg(Utils.obfuscateKey(clone[i])));
+      else newCmds.push(Utils.wrapArg(clone[i]));
       lastCmd = clone[i];
     }
     return newCmds.join(' ');
