@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0](https://github.com/H3rmt/obsidian-wakatime/compare/1.3.0...1.4.0) (2025-07-19)
+
+
+### Features
+
+* added biome ([a31e800](https://github.com/H3rmt/obsidian-wakatime/commit/a31e8005992bc97c9bf576542b66e7975461085c))
+* added suport for View of any file ([d8d103d](https://github.com/H3rmt/obsidian-wakatime/commit/d8d103d2c6f40a4e57db04fac54536708afd31f3))
+
+
+### Bug Fixes
+
+* also trigger event on scroll ([93723c6](https://github.com/H3rmt/obsidian-wakatime/commit/93723c6c5620b863b129eeba177ffba9094767fa))
+* remove request dependency (now ignores SSL and Proxy settings from wakatime) ([19c0cb3](https://github.com/H3rmt/obsidian-wakatime/commit/19c0cb3ef4d08d5fea93587273436efac04dad40))
+
 ## [1.3.0](https://github.com/H3rmt/obsidian-wakatime/compare/1.2.0...1.3.0) (2025-06-24)
 
 
