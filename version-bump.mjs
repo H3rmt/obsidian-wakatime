@@ -1,7 +1,7 @@
-import {readFileSync, writeFileSync} from "fs";
+import { readFileSync, writeFileSync } from 'node:fs';
 
 const targetVersion = process.argv[2];
-let manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
-let versions = JSON.parse(readFileSync("versions.json", "utf8"));
+const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
+const versions = JSON.parse(readFileSync('versions.json', 'utf8'));
 versions[targetVersion] = manifest.minAppVersion;
-writeFileSync("versions.json", JSON.stringify(versions, null, "\t"));
+writeFileSync('versions.json', JSON.stringify(versions, null, '\t'));
