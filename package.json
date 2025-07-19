@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@types/adm-zip": "0.5.7",
-    "@types/node": "16.18.126",
+    "@types/node": "22.16.5",
     "@types/which": "3.0.4",
     "esbuild": "0.25.5",
     "obsidian": "1.8.7",
