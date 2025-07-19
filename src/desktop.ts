@@ -3,36 +3,28 @@ import * as os from 'node:os';
 
 interface Option {
   windowsHide: boolean;
-  env?: any;
+  env?: Record<string, string>;
 }
 
-export class Desktop {
-  public static isWindows(): boolean {
-    return os.platform() === 'win32';
-  }
+export function isWindows(): boolean {
+  return os.platform() === 'win32';
+}
 
-  public static getHomeDirectory(): string {
-    const home = process.env.WAKATIME_HOME;
-    if (home?.trim() && fs.existsSync(home.trim())) return home.trim();
-    return (
-      process.env[Desktop.isWindows() ? 'USERPROFILE' : 'HOME'] || process.cwd()
-    );
-  }
+export function getHomeDirectory(): string {
+  const home = process.env.WAKATIME_HOME;
+  if (home?.trim() && fs.existsSync(home.trim())) return home.trim();
+  return process.env[isWindows() ? 'USERPROFILE' : 'HOME'] || process.cwd();
+}
 
-  public static buildOptions(): any {
-    const options: Option = {
-      windowsHide: true,
+export function buildOptions(): Option {
+  const options: Option = {
+    windowsHide: true,
+  };
+  if (!isWindows() && !process.env.WAKATIME_HOME && !process.env.HOME) {
+    options.env = {
+      ...process.env,
+      WAKATIME_HOME: getHomeDirectory(),
     };
-    if (
-      !Desktop.isWindows() &&
-      !process.env.WAKATIME_HOME &&
-      !process.env.HOME
-    ) {
-      options.env = {
-        ...process.env,
-        WAKATIME_HOME: Desktop.getHomeDirectory(),
-      };
-    }
-    return options;
   }
+  return options;
 }
