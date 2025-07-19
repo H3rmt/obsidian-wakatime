@@ -1,0 +1,55 @@
+on:
+  push:
+    branches:
+      - main
+
+name: release-please
+
+permissions:
+  contents: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@a02a34c4d625f9be7cb89156071d8567266a2445 # v4.2.0
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        if: ${{ steps.release.outputs.release_created }}
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4
+        if: ${{ steps.release.outputs.release_created }}
+      - name: Add min version
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          set -euxo pipefail
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          node version-bump.mjs ${{ steps.release.outputs.tag_name }}
+          git add manifest.json versions.json
+          git commit -m "chore: update versions for ${{ steps.release.outputs.tag_name }}"
+          git tag --delete ${{ steps.release.outputs.tag_name  }}
+          git push --delete origin ${{ steps.release.outputs.tag_name  }}
+          git tag ${{ steps.release.outputs.tag_name  }}
+          git push --tags origin
+      - name: Upload Release Artifact
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          set -euxo pipefail
+          pnpm install
+          pnpm build
+          releaseNotes=$(gh release view ${{ steps.release.outputs.tag_name }} --json body -q .body)
+          newNotes=$'## Replace contents of `.obsidian/plugins/obsidian-wakatime` with the attached files or the zip file contents\n\n'"$releaseNotes"
+          gh release edit ${{ steps.release.outputs.tag_name }} -n "$newNotes" --latest --draft=false
+          gh release upload ${{ steps.release.outputs.tag_name }} ./dist/main.js
+          gh release upload ${{ steps.release.outputs.tag_name }} ./styles.css
+          gh release upload ${{ steps.release.outputs.tag_name }} ./manifest.json
+          zip -j /tmp/release.zip ./dist/main.js ./styles.css ./manifest.json
+          gh release upload ${{ steps.release.outputs.tag_name }} /tmp/release.zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
