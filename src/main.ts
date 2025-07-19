@@ -13,11 +13,12 @@ import {
 } from 'obsidian';
 import { LogLevel } from './constants';
 import { Dependencies } from './dependencies';
-import { Desktop } from './desktop';
+import { buildOptions, isWindows } from './desktop';
 import { Logger } from './logger';
 import { type OptionSetting, Options } from './options';
-import { Utils } from './utils';
+import { apiKeyInvalid, formatArguments, formatDate, quote } from './utils';
 
+// noinspection JSUnusedGlobalSymbols
 export default class WakaTime extends Plugin {
   options: Options;
   statusBar: HTMLElement;
@@ -196,37 +197,35 @@ export default class WakaTime extends Plugin {
     const args: string[] = [];
 
     args.push('--category', 'writing docs');
-    args.push('--entity', Utils.quote(file));
+    args.push('--entity', quote(file));
     args.push('--project', String(this.app.vault.getName()));
 
     // Use the exact time when the event occurred, not "now".
     args.push('--time', (time / 1000).toFixed(6));
 
     const user_agent = `obsidian/${apiVersion} obsidian-wakatime/${this.manifest.version}`;
-    args.push('--plugin', Utils.quote(user_agent));
+    args.push('--plugin', quote(user_agent));
 
     if (lineno !== undefined) args.push('--lineno', String(lineno + 1));
     if (cursorpos !== undefined)
       args.push('--cursorpos', String(cursorpos + 1));
 
-    if (file.endsWith('.pdf')) args.push('--language', Utils.quote('Pdf'));
+    if (file.endsWith('.pdf')) args.push('--language', quote('Pdf'));
 
     if (isWrite) args.push('--write');
 
-    if (Desktop.isWindows()) {
+    if (isWindows()) {
       args.push(
         '--config',
-        Utils.quote(this.options.getConfigFile(false)),
+        quote(this.options.getConfigFile(false)),
         '--log-file',
-        Utils.quote(this.options.getLogFile()),
+        quote(this.options.getLogFile()),
       );
     }
 
     const binary = this.dependencies.getCliLocation();
-    this.logger.debug(
-      `Sending heartbeat: ${Utils.formatArguments(binary, args)}`,
-    );
-    const options = Desktop.buildOptions();
+    this.logger.debug(`Sending heartbeat: ${formatArguments(binary, args)}`);
+    const options = buildOptions();
     const proc = child_process.execFile(
       binary,
       args,
@@ -244,9 +243,7 @@ export default class WakaTime extends Plugin {
     proc.on('close', (code, _signal) => {
       if (code === 0) {
         if (this.showStatusBar) this.getCodingActivity();
-        this.logger.debug(
-          `last heartbeat sent ${Utils.formatDate(new Date())}`,
-        );
+        this.logger.debug(`last heartbeat sent ${formatDate(new Date())}`);
       } else if (code === 102 || code === 112) {
         if (this.showStatusBar) {
           if (!this.showCodingActivity) this.updateStatusBarText();
@@ -307,22 +304,22 @@ export default class WakaTime extends Plugin {
     if (!this.dependencies.isCliInstalled()) return;
 
     const user_agent = `obsidian/${apiVersion} obsidian-wakatime/${this.manifest.version}`;
-    const args = ['--today', '--plugin', Utils.quote(user_agent)];
+    const args = ['--today', '--plugin', quote(user_agent)];
 
-    if (Desktop.isWindows()) {
+    if (isWindows()) {
       args.push(
         '--config',
-        Utils.quote(this.options.getConfigFile(false)),
+        quote(this.options.getConfigFile(false)),
         '--logfile',
-        Utils.quote(this.options.getLogFile()),
+        quote(this.options.getLogFile()),
       );
     }
 
     const binary = this.dependencies.getCliLocation();
     this.logger.debug(
-      `Fetching coding activity for Today from api: ${Utils.formatArguments(binary, args)}`,
+      `Fetching coding activity for Today from api: ${formatArguments(binary, args)}`,
     );
-    const options = Desktop.buildOptions();
+    const options = buildOptions();
     const proc = child_process.execFile(
       binary,
       args,
@@ -376,8 +373,10 @@ class ApiKeyModal extends Modal {
   input: TextComponent;
   private static instance: ApiKeyModal;
 
+  // biome-ignore lint/correctness/noUnreachableSuper: Singleton pattern
   constructor(app: App, options: Options) {
     if (ApiKeyModal.instance) {
+      // biome-ignore lint/correctness/noConstructorReturn: Singleton pattern
       return ApiKeyModal.instance;
     }
     super(app);
@@ -394,7 +393,7 @@ class ApiKeyModal extends Modal {
       false,
       (setting: OptionSetting) => {
         let defaultVal = setting.value;
-        if (Utils.apiKeyInvalid(defaultVal)) defaultVal = '';
+        if (apiKeyInvalid(defaultVal)) defaultVal = '';
 
         contentEl.createEl('h2', { text: 'Enter your WakaTime API Key' });
 
@@ -410,7 +409,7 @@ class ApiKeyModal extends Modal {
             .setCta()
             .onClick(() => {
               const val = this.input.getValue();
-              const invalid = Utils.apiKeyInvalid(val);
+              const invalid = apiKeyInvalid(val);
               console.log(invalid);
               if (!invalid) {
                 this.close();

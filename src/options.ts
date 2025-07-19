@@ -1,9 +1,9 @@
 import * as child_process from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { Desktop } from './desktop';
+import { buildOptions, getHomeDirectory } from './desktop';
 import type { Logger } from './logger';
-import { Utils } from './utils';
+import { apiKeyInvalid } from './utils';
 
 export interface OptionSetting {
   key: string;
@@ -16,14 +16,14 @@ type FoundOption = {
 };
 
 export class Options {
-  private configFile: string;
-  private internalConfigFile: string;
-  private logFile: string;
+  private readonly configFile: string;
+  private readonly internalConfigFile: string;
+  private readonly logFile: string;
   private logger: Logger;
-  private cache: any = {};
+  private cache: { api_key?: string } = {};
 
   constructor(logger: Logger) {
-    const wakaHome = Desktop.getHomeDirectory();
+    const wakaHome = getHomeDirectory();
     this.configFile = path.join(wakaHome, '.wakatime.cfg');
     this.internalConfigFile = path.join(wakaHome, '.wakatime-internal.cfg');
     this.logFile = path.join(wakaHome, '.wakatime.log');
@@ -240,13 +240,14 @@ export class Options {
   }
 
   public async getApiKeyAsync(): Promise<string> {
-    if (!Utils.apiKeyInvalid(this.cache.api_key)) {
-      return this.cache.api_key;
+    if (!apiKeyInvalid(this.cache.api_key)) {
+      // biome-ignore lint/style/noNonNullAssertion: api_key definetely exists
+      return this.cache.api_key!;
     }
 
     try {
       const apiKeyFromVault = await this.getApiKeyFromVaultCmd();
-      if (!Utils.apiKeyInvalid(apiKeyFromVault)) {
+      if (!apiKeyInvalid(apiKeyFromVault)) {
         this.cache.api_key = apiKeyFromVault;
         return this.cache.api_key;
       }
@@ -255,7 +256,7 @@ export class Options {
 
     try {
       const apiKey = await this.getSettingAsync('settings', 'api_key');
-      if (!Utils.apiKeyInvalid(apiKey)) this.cache.api_key = apiKey;
+      if (!apiKeyInvalid(apiKey)) this.cache.api_key = apiKey;
       return apiKey;
     } catch (err) {
       this.logger.debug(
@@ -273,7 +274,7 @@ export class Options {
       );
       if (!apiKeyCmd) return '';
 
-      const options = Desktop.buildOptions();
+      const options = buildOptions();
       const proc = child_process.spawn(apiKeyCmd, options);
 
       let stdout = '';
@@ -293,9 +294,7 @@ export class Options {
           `api key vault command error (${exitCode}): ${stderr}`,
         );
       else if (stderr?.trim()) this.logger.warn(stderr.trim());
-
-      const apiKey = stdout.toString().trim();
-      return apiKey;
+      return stdout.toString().trim();
     } catch (err) {
       this.logger.debug(
         `Exception while reading API Key Vault Cmd from config file: ${err}`,
@@ -307,7 +306,7 @@ export class Options {
   public getApiKey(callback: (apiKey: string | null) => void): void {
     this.getApiKeyAsync()
       .then((apiKey) => {
-        if (!Utils.apiKeyInvalid(apiKey)) {
+        if (!apiKeyInvalid(apiKey)) {
           callback(apiKey);
         } else {
           callback(null);
@@ -321,7 +320,7 @@ export class Options {
 
   public hasApiKey(callback: (valid: boolean) => void): void {
     this.getApiKeyAsync()
-      .then((apiKey) => callback(!Utils.apiKeyInvalid(apiKey)))
+      .then((apiKey) => callback(!apiKeyInvalid(apiKey)))
       .catch((err) => {
         this.logger.warn(`Unable to check for api key: ${err}`);
         callback(false);

@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import AdmZip from 'adm-zip';
 import which from 'which';
-import { Desktop } from './desktop';
+import { buildOptions, getHomeDirectory, isWindows } from './desktop';
 import type { Logger } from './logger';
 import type { OptionSetting, Options } from './options';
 
@@ -31,7 +31,7 @@ export class Dependencies {
   private getResourcesLocation() {
     if (this.resourcesLocation) return this.resourcesLocation;
 
-    const folder = path.join(Desktop.getHomeDirectory(), '.wakatime');
+    const folder = path.join(getHomeDirectory(), '.wakatime');
     try {
       fs.mkdirSync(folder, { recursive: true });
       this.resourcesLocation = folder;
@@ -47,7 +47,7 @@ export class Dependencies {
     this.cliLocation = this.getCliLocationGlobal();
     if (this.cliLocation) return this.cliLocation;
 
-    const ext = Desktop.isWindows() ? '.exe' : '';
+    const ext = isWindows() ? '.exe' : '';
     let osname = os.platform() as string;
     if (osname === 'win32') osname = 'windows';
     const arch = this.architecture();
@@ -62,7 +62,7 @@ export class Dependencies {
   public getCliLocationGlobal(): string | undefined {
     if (this.cliLocationGlobal) return this.cliLocationGlobal;
 
-    const binaryName = `wakatime-cli${Desktop.isWindows() ? '.exe' : ''}`;
+    const binaryName = `wakatime-cli${isWindows() ? '.exe' : ''}`;
     const path = which.sync(binaryName, { nothrow: true });
     if (path) {
       this.cliLocationGlobal = path;
@@ -99,7 +99,7 @@ export class Dependencies {
     }
 
     const args = ['--version'];
-    const options = Desktop.buildOptions();
+    const options = buildOptions();
     try {
       child_process.execFile(
         this.getCliLocation(),
@@ -270,7 +270,7 @@ export class Dependencies {
     );
     this.removeCli(() => {
       this.unzip(zipFile, this.getResourcesLocation(), () => {
-        if (!Desktop.isWindows()) {
+        if (!isWindows()) {
           const cli = this.getCliLocation();
           try {
             this.logger.debug('Chmod 755 wakatime-cli...');
@@ -278,7 +278,7 @@ export class Dependencies {
           } catch (e) {
             this.logger.warnException(e);
           }
-          const ext = Desktop.isWindows() ? '.exe' : '';
+          const ext = isWindows() ? '.exe' : '';
           const link = path.join(
             this.getResourcesLocation(),
             `wakatime-cli${ext}`,
