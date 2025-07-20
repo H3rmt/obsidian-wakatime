@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 0
       - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
         if: ${{ steps.release.outputs.release_created }}
-      - name: Add min version
+      - name: Bump version in manifest and versions files, update tag
         if: ${{ steps.release.outputs.release_created }}
         run: |
           set -euxo pipefail
@@ -37,14 +37,14 @@ jobs:
           git push --delete origin ${{ steps.release.outputs.tag_name  }}
           git tag ${{ steps.release.outputs.tag_name  }}
           git push --tags origin
-      - name: Upload Release Artifact
+      - name: Build and upload release assets
         if: ${{ steps.release.outputs.release_created }}
         run: |
           set -euxo pipefail
           pnpm install
           pnpm build
           releaseNotes=$(gh release view ${{ steps.release.outputs.tag_name }} --json body -q .body)
-          newNotes=$'## Replace contents of `.obsidian/plugins/obsidian-wakatime` with the attached files or the zip file contents\n\n'"$releaseNotes"
+          newNotes=$'### Replace contents of `.obsidian/plugins/obsidian-wakatime` with the attached files or the zip file contents\n\n'"$releaseNotes"
           gh release edit ${{ steps.release.outputs.tag_name }} -n "$newNotes" --latest --draft=false
           gh release upload ${{ steps.release.outputs.tag_name }} ./dist/main.js
           gh release upload ${{ steps.release.outputs.tag_name }} ./styles.css
