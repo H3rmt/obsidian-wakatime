@@ -24,7 +24,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.1.2",
     "@types/adm-zip": "0.5.7",
-    "@types/node": "16.18.126",
+    "@types/node": "22.18.12",
     "@types/which": "3.0.4",
     "esbuild": "0.25.8",
     "obsidian": "1.8.7",
