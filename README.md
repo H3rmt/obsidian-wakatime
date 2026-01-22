@@ -3,6 +3,11 @@
 [WakaTime][wakatime] is an open source Obsidian plugin for metrics, insights, and time tracking automatically generated
 from your Obsidian usage activity.
 
+### This is a fork of the [WakaTime plugin][wakatime]
+
+Install the official [WakaTime plugin][wakatime] for Obsidian and replace the files in `.obsidian` with the ones in this
+repositor.
+
 ## Installation
 
 Look at the lastest release.
