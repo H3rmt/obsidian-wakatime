@@ -15,7 +15,7 @@ import { LogLevel } from './constants';
 import { Dependencies } from './dependencies';
 import { buildOptions, isWindows } from './desktop';
 import { Logger } from './logger';
-import { type OptionSetting, Options } from './options';
+import { Options } from './options';
 import { apiKeyInvalid, formatArguments, formatDate, quote } from './utils';
 
 // noinspection JSUnusedGlobalSymbols
@@ -44,75 +44,52 @@ export default class WakaTime extends Plugin {
       },
     });
 
-    this.options.getSetting(
-      'settings',
-      'debug',
-      false,
-      (debug: OptionSetting) => {
-        this.logger.setLevel(
-          debug.value === 'true' ? LogLevel.DEBUG : LogLevel.INFO,
-        );
-        this.dependencies = new Dependencies(this.options, this.logger);
-
-        this.options.getSetting(
-          'settings',
-          'disabled',
-          false,
-          (disabled: OptionSetting) => {
-            this.disabled = disabled.value === 'true';
-            if (this.disabled) {
-              return;
-            }
-
-            this.initializeDependencies();
-          },
-        );
-      },
+    const debug = await this.options.getSettingAsync('settings', 'debug');
+    this.logger.setLevel(
+      debug?.value === 'true' ? LogLevel.DEBUG : LogLevel.INFO,
     );
+    this.dependencies = new Dependencies(this.options, this.logger);
+
+    const disabled = await this.options.getSettingAsync('settings', 'disabled');
+    this.disabled = disabled?.value === 'true';
+    if (this.disabled) {
+      return;
+    }
+
+    await this.initializeDependencies();
   }
 
   onunload() {}
 
-  public initializeDependencies(): void {
+  public async initializeDependencies(): Promise<void> {
     this.logger.debug(`Initializing WakaTime v${this.manifest.version}`);
 
     this.statusBar = this.addStatusBarItem();
 
-    this.options.getSetting(
-      'settings',
-      'status_bar_enabled',
-      false,
-      (statusBarEnabled: OptionSetting) => {
-        this.showStatusBar = statusBarEnabled.value !== 'false';
-        this.updateStatusBarText('WakaTime Initializing...');
+    const [statusBarEnabled, showCodingActivity] = await Promise.all([
+      this.options.getSettingAsync('settings', 'status_bar_enabled'),
+      this.options.getSettingAsync('settings', 'status_bar_coding_activity'),
+    ]);
 
-        this.checkApiKey();
+    this.showStatusBar = statusBarEnabled?.value !== 'false';
+    this.updateStatusBarText('WakaTime Initializing...');
 
-        this.setupEventListeners();
+    await this.checkApiKey();
 
-        this.options.getSetting(
-          'settings',
-          'status_bar_coding_activity',
-          false,
-          (showCodingActivity: OptionSetting) => {
-            this.showCodingActivity = showCodingActivity.value !== 'false';
+    this.setupEventListeners();
 
-            this.dependencies.checkAndInstallCli(() => {
-              this.logger.debug('WakaTime initialized');
-              this.updateStatusBarText();
-              this.updateStatusBarTooltip('WakaTime: Initialized');
-              this.getCodingActivity();
-            });
-          },
-        );
-      },
-    );
+    this.showCodingActivity = showCodingActivity?.value !== 'false';
+
+    await this.dependencies.checkAndInstallCli();
+    this.logger.debug('WakaTime initialized');
+    this.updateStatusBarText();
+    this.updateStatusBarTooltip('WakaTime: Initialized');
+    await this.getCodingActivity();
   }
 
-  private checkApiKey(): void {
-    this.options.hasApiKey((hasApiKey) => {
-      if (!hasApiKey) this.promptForApiKey();
-    });
+  private async checkApiKey(): Promise<void> {
+    const hasApiKey = await this.options.hasApiKeyAsync();
+    if (!hasApiKey) this.promptForApiKey();
   }
 
   private setupEventListeners(): void {
@@ -172,17 +149,16 @@ export default class WakaTime extends Plugin {
     new ApiKeyModal(this.app, this.options).open();
   }
 
-  private sendHeartbeat(
+  private async sendHeartbeat(
     file: string,
     time: number,
     lineno: number | undefined,
     cursorpos: number | undefined,
     isWrite: boolean,
-  ): void {
-    this.options.getApiKey((apiKey) => {
-      if (!apiKey) return;
-      this._sendHeartbeat(file, time, lineno, cursorpos, isWrite);
-    });
+  ): Promise<void> {
+    const apiKey = await this.options.getApiKeyAsync();
+    if (!apiKey) return;
+    this._sendHeartbeat(file, time, lineno, cursorpos, isWrite);
   }
 
   private _sendHeartbeat(
@@ -196,7 +172,7 @@ export default class WakaTime extends Plugin {
 
     const args: string[] = [];
 
-    args.push('--category', 'writing docs');
+    args.push('--category', 'notes');
     args.push('--entity', quote(file));
     args.push('--project', String(this.app.vault.getName()));
 
@@ -240,9 +216,9 @@ export default class WakaTime extends Plugin {
         }
       },
     );
-    proc.on('close', (code, _signal) => {
+    proc.on('close', async (code, _signal) => {
       if (code === 0) {
-        if (this.showStatusBar) this.getCodingActivity();
+        if (this.showStatusBar) await this.getCodingActivity();
         this.logger.debug(`last heartbeat sent ${formatDate(new Date())}`);
       } else if (code === 102 || code === 112) {
         if (this.showStatusBar) {
@@ -280,7 +256,7 @@ export default class WakaTime extends Plugin {
     });
   }
 
-  private getCodingActivity() {
+  private async getCodingActivity(): Promise<void> {
     if (!this.showStatusBar) {
       return;
     }
@@ -294,10 +270,9 @@ export default class WakaTime extends Plugin {
 
     this.lastFetchToday = Date.now();
 
-    this.options.getApiKey((apiKey) => {
-      if (!apiKey) return;
-      this._getCodingActivity();
-    });
+    const apiKey = await this.options.getApiKeyAsync();
+    if (!apiKey) return;
+    this._getCodingActivity();
   }
 
   private _getCodingActivity() {
@@ -384,40 +359,36 @@ class ApiKeyModal extends Modal {
     ApiKeyModal.instance = this;
   }
 
-  onOpen() {
+  async onOpen() {
     const { contentEl } = this;
 
-    this.options.getSetting(
-      'settings',
-      'api_key',
-      false,
-      (setting: OptionSetting) => {
-        let defaultVal = setting.value;
-        if (apiKeyInvalid(defaultVal)) defaultVal = '';
+    const api_key = await this.options.getSettingAsync('settings', 'api_key');
+    let defaultVal = api_key?.value || '';
+    if (apiKeyInvalid(defaultVal)) {
+      defaultVal = '';
+    }
 
-        contentEl.createEl('h2', { text: 'Enter your WakaTime API Key' });
+    contentEl.createEl('h2', { text: 'Enter your WakaTime API Key' });
 
-        new Setting(contentEl).addText((text) => {
-          text.setValue(defaultVal);
-          text.inputEl.addClass('api-key-input');
-          this.input = text;
-        });
+    new Setting(contentEl).addText((text) => {
+      text.setValue(defaultVal);
+      text.inputEl.addClass('api-key-input');
+      this.input = text;
+    });
 
-        new Setting(contentEl).addButton((btn) =>
-          btn
-            .setButtonText('Save')
-            .setCta()
-            .onClick(() => {
-              const val = this.input.getValue();
-              const invalid = apiKeyInvalid(val);
-              console.log(invalid);
-              if (!invalid) {
-                this.close();
-                this.options.setSetting('settings', 'api_key', val, false);
-              }
-            }),
-        );
-      },
+    new Setting(contentEl).addButton((btn) =>
+      btn
+        .setButtonText('Save')
+        .setCta()
+        .onClick(() => {
+          const val = this.input.getValue();
+          const invalid = apiKeyInvalid(val);
+          console.log(invalid);
+          if (!invalid) {
+            this.close();
+            this.options.setSetting('settings', 'api_key', val, false);
+          }
+        }),
     );
   }
 

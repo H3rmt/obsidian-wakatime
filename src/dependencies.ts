@@ -1,12 +1,16 @@
 import * as child_process from 'node:child_process';
 import * as fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import AdmZip from 'adm-zip';
-import which from 'which';
+import { promisify } from 'node:util';
+import extract from 'extract-zip';
 import { buildOptions, getHomeDirectory, isWindows } from './desktop';
 import type { Logger } from './logger';
-import type { OptionSetting, Options } from './options';
+import type { Options } from './options';
+import { whichSync } from './which';
+
+const execFile = promisify(child_process.execFile);
 
 export class Dependencies {
   private options: Options;
@@ -63,7 +67,7 @@ export class Dependencies {
     if (this.cliLocationGlobal) return this.cliLocationGlobal;
 
     const binaryName = `wakatime-cli${isWindows() ? '.exe' : ''}`;
-    const path = which.sync(binaryName, { nothrow: true });
+    const path = whichSync(binaryName);
     if (path) {
       this.cliLocationGlobal = path;
       this.logger.debug(`Using global wakatime-cli location: ${path}`);
@@ -78,182 +82,135 @@ export class Dependencies {
     return this.cliInstalled;
   }
 
-  public checkAndInstallCli(callback: () => void): void {
+  public async checkAndInstallCli(): Promise<void> {
     if (!this.isCliInstalled()) {
-      this.installCli(callback);
+      await this.installCli();
     } else {
-      this.isCliLatest((isLatest) => {
-        if (!isLatest) {
-          this.installCli(callback);
-        } else {
-          callback();
-        }
-      });
+      const isLatest = await this.isCliLatest();
+      if (!isLatest) {
+        await this.installCli();
+      }
     }
   }
 
-  private isCliLatest(callback: (arg0: boolean) => void): void {
+  private async isCliLatest(): Promise<boolean> {
     if (this.getCliLocationGlobal()) {
-      callback(true);
-      return;
+      return true;
     }
 
     const args = ['--version'];
     const options = buildOptions();
     try {
-      child_process.execFile(
+      const { stdout, stderr } = await execFile(
         this.getCliLocation(),
         args,
         options,
-        (error, _stdout, stderr) => {
-          if (!(error != null)) {
-            const currentVersion =
-              _stdout.toString().trim() + stderr.toString().trim();
-            this.logger.debug(
-              `Current wakatime-cli version is ${currentVersion}`,
-            );
-
-            this.logger.debug('Checking for updates to wakatime-cli...');
-            this.getLatestCliVersion((latestVersion) => {
-              if (currentVersion === latestVersion) {
-                this.logger.debug('wakatime-cli is up to date');
-                callback(true);
-              } else if (latestVersion) {
-                this.logger.debug(
-                  `Found an updated wakatime-cli ${latestVersion}`,
-                );
-                callback(false);
-              } else {
-                this.logger.debug('Unable to find latest wakatime-cli version');
-                callback(false);
-              }
-            });
-          } else {
-            callback(false);
-          }
-        },
       );
+      const currentVersion =
+        stdout.toString().trim() + stderr.toString().trim();
+      this.logger.debug(`Current wakatime-cli version is ${currentVersion}`);
+
+      this.logger.debug('Checking for updates to wakatime-cli...');
+      const latestVersion = await this.getLatestCliVersion();
+      if (currentVersion === latestVersion) {
+        this.logger.debug('wakatime-cli is up to date');
+        return true;
+      } else if (latestVersion) {
+        this.logger.debug(`Found an updated wakatime-cli ${latestVersion}`);
+        return false;
+      } else {
+        this.logger.debug('Unable to find latest wakatime-cli version');
+        return false;
+      }
     } catch (_e) {
-      callback(false);
+      return false;
     }
   }
 
-  private getLatestCliVersion(callback: (arg0: string) => void): void {
+  private async getLatestCliVersion(): Promise<string> {
     if (this.latestCliVersion) {
-      callback(this.latestCliVersion);
+      return this.latestCliVersion;
+    }
+
+    const [modified, version, alpha] = await Promise.all([
+      this.options.getSettingAsync('internal', 'cli_version_last_modified'),
+      this.options.getSettingAsync('internal', 'cli_version'),
+      this.options.getSettingAsync('settings', 'alpha'),
+    ]);
+
+    const options: RequestInit = {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'github.com/wakatime/vscode-wakatime',
+        Accept: 'application/json',
+        'If-Modified-Since':
+          modified?.value && version?.value ? modified.value : '',
+      },
+    };
+
+    try {
+      const response = await fetch(
+        alpha?.value === 'true'
+          ? this.githubReleasesAlphaUrl
+          : this.githubReleasesStableUrl,
+        options,
+      );
+
+      if (response.ok || response.status === 304) {
+        this.logger.debug(`GitHub API Response ${response.status}`);
+        if (response.status === 304) {
+          this.latestCliVersion = version?.value || '';
+          return this.latestCliVersion;
+        }
+
+        const json = await response.json();
+        this.latestCliVersion =
+          alpha?.value === 'true' ? json[0].tag_name : json.tag_name;
+
+        this.logger.debug(
+          `Latest wakatime-cli version from GitHub: ${this.latestCliVersion}`,
+        );
+
+        const lastModified = response.headers.get('last-modified');
+        if (lastModified && this.latestCliVersion) {
+          this.options.setSettings(
+            'internal',
+            [
+              {
+                key: 'cli_version',
+                value: this.latestCliVersion,
+              },
+              {
+                key: 'cli_version_last_modified',
+                value: lastModified,
+              },
+            ],
+            true,
+          );
+        }
+        return this.latestCliVersion;
+      } else {
+        this.logger.warn(`GitHub API Response ${response.status}`);
+      }
+    } catch (e) {
+      this.logger.warnException(e);
+    }
+    return '';
+  }
+
+  private async installCli(): Promise<void> {
+    const version = await this.getLatestCliVersion();
+    if (!version) {
       return;
     }
-    this.options.getSetting(
-      'internal',
-      'cli_version_last_modified',
-      true,
-      (modified: OptionSetting) => {
-        this.options.getSetting(
-          'internal',
-          'cli_version',
-          true,
-          (version: OptionSetting) => {
-            this.options.getSetting(
-              'settings',
-              'alpha',
-              false,
-              (alpha: OptionSetting) => {
-                const options: RequestInit = {
-                  method: 'GET',
-                  headers: {
-                    'User-Agent': 'github.com/wakatime/vscode-wakatime',
-                    Accept: 'application/json',
-                    'If-Modified-Since':
-                      modified.value && version.value ? modified.value : '',
-                  },
-                };
-                try {
-                  fetch(
-                    alpha.value === 'true'
-                      ? this.githubReleasesAlphaUrl
-                      : this.githubReleasesStableUrl,
-                    options,
-                  ).then((response) => {
-                    if (response.ok || response.status === 304) {
-                      this.logger.debug(
-                        `GitHub API Response ${response.status}`,
-                      );
-                      if (response.status === 304) {
-                        this.latestCliVersion = version.value;
-                        callback(this.latestCliVersion);
-                        return;
-                      }
-
-                      response.json().then((json) => {
-                        this.latestCliVersion =
-                          alpha.value === 'true'
-                            ? json[0].tag_name
-                            : json.tag_name;
-
-                        this.logger.debug(
-                          `Latest wakatime-cli version from GitHub: ${this.latestCliVersion}`,
-                        );
-
-                        const lastModified =
-                          response.headers.get('last-modified');
-                        if (lastModified && this.latestCliVersion) {
-                          this.options.setSettings(
-                            'internal',
-                            [
-                              {
-                                key: 'cli_version',
-                                value: this.latestCliVersion,
-                              },
-                              {
-                                key: 'cli_version_last_modified',
-                                value: lastModified,
-                              },
-                            ],
-                            true,
-                          );
-                        }
-                        callback(this.latestCliVersion);
-                      });
-                    } else {
-                      this.logger.warn(
-                        `GitHub API Response ${response.status}`,
-                      );
-                      callback('');
-                    }
-                  });
-                } catch (e) {
-                  this.logger.warnException(e);
-                  callback('');
-                }
-              },
-            );
-          },
-        );
-      },
+    this.logger.debug(`Downloading wakatime-cli ${version}...`);
+    const url = this.cliDownloadUrl(version);
+    const zipFile = path.join(
+      this.getResourcesLocation(),
+      `wakatime-cli${this.randStr()}.zip`,
     );
-  }
-
-  private installCli(callback: () => void): void {
-    this.getLatestCliVersion((version) => {
-      if (!version) {
-        callback();
-        return;
-      }
-      this.logger.debug(`Downloading wakatime-cli ${version}...`);
-      const url = this.cliDownloadUrl(version);
-      const zipFile = path.join(
-        this.getResourcesLocation(),
-        `wakatime-cli${this.randStr()}.zip`,
-      );
-      this.downloadFile(
-        url,
-        zipFile,
-        () => {
-          this.extractCli(zipFile, callback);
-        },
-        callback,
-      );
-    });
+    await this.downloadFile(url, zipFile);
+    await this.extractCli(zipFile);
   }
 
   private isSymlink(file: string): boolean {
@@ -264,109 +221,79 @@ export class Dependencies {
     return false;
   }
 
-  private extractCli(zipFile: string, callback: () => void): void {
+  private async extractCli(zipFile: string): Promise<void> {
     this.logger.debug(
       `Extracting wakatime-cli into "${this.getResourcesLocation()}"...`,
     );
-    this.removeCli(() => {
-      this.unzip(zipFile, this.getResourcesLocation(), () => {
-        if (!isWindows()) {
-          const cli = this.getCliLocation();
+    await this.removeCli();
+    await this.unzip(zipFile, this.getResourcesLocation());
+
+    if (!isWindows()) {
+      const cli = this.getCliLocation();
+      try {
+        this.logger.debug('Chmod 755 wakatime-cli...');
+        await fsp.chmod(cli, 0o755);
+      } catch (e) {
+        this.logger.warnException(e);
+      }
+      const link = path.join(this.getResourcesLocation(), `wakatime-cli`);
+      if (!this.isSymlink(link)) {
+        try {
+          this.logger.debug(`Create symlink from wakatime-cli to ${cli}`);
+          await fsp.symlink(cli, link);
+        } catch (e) {
+          this.logger.warnException(e);
           try {
-            this.logger.debug('Chmod 755 wakatime-cli...');
-            fs.chmodSync(cli, 0o755);
-          } catch (e) {
-            this.logger.warnException(e);
-          }
-          const ext = isWindows() ? '.exe' : '';
-          const link = path.join(
-            this.getResourcesLocation(),
-            `wakatime-cli${ext}`,
-          );
-          if (!this.isSymlink(link)) {
-            try {
-              this.logger.debug(`Create symlink from wakatime-cli to ${cli}`);
-              fs.symlinkSync(cli, link);
-            } catch (e) {
-              this.logger.warnException(e);
-              try {
-                fs.copyFileSync(cli, link);
-                fs.chmodSync(link, 0o755);
-              } catch (e2) {
-                this.logger.warnException(e2);
-              }
-            }
+            await fsp.copyFile(cli, link);
+            await fsp.chmod(link, 0o755);
+          } catch (e2) {
+            this.logger.warnException(e2);
           }
         }
-        callback();
-      });
-      this.logger.debug('Finished extracting wakatime-cli.');
-    });
+      }
+    }
+    this.logger.debug('Finished extracting wakatime-cli.');
   }
 
-  private removeCli(callback: () => void): void {
+  private async removeCli(): Promise<void> {
     if (fs.existsSync(this.getCliLocation())) {
-      fs.unlink(this.getCliLocation(), () => {
-        callback();
-      });
-    } else {
-      callback();
+      try {
+        await fsp.unlink(this.getCliLocation());
+      } catch (e) {
+        this.logger.warnException(e);
+      }
     }
   }
 
-  private downloadFile(
-    url: string,
-    outputFile: string,
-    callback: () => void,
-    error: () => void,
-  ): void {
+  private async downloadFile(url: string, outputFile: string): Promise<void> {
     const options: RequestInit = {
       method: 'GET',
     };
-    fetch(url, options)
-      .then((response) => {
-        if (!response.ok) {
-          this.logger.warn(`Failed to download ${url}`);
-          this.logger.warn(`Status: ${response.status}`);
-          error();
-          return;
-        }
-        response
-          .arrayBuffer()
-          .then((arrayBuffer) => {
-            try {
-              fs.writeFileSync(outputFile, Buffer.from(arrayBuffer));
-              callback();
-            } catch (err) {
-              this.logger.warnException(err);
-              error();
-            }
-          })
-          .catch((err) => {
-            this.logger.warnException(err);
-            error();
-          });
-      })
-      .catch((e) => {
-        this.logger.warnException(e);
-        callback();
-      });
+    try {
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        this.logger.warn(`Failed to download ${url}`);
+        this.logger.warn(`Status: ${response.status}`);
+        return;
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      await fsp.writeFile(outputFile, Buffer.from(arrayBuffer));
+    } catch (e) {
+      this.logger.warnException(e);
+    }
   }
 
-  private unzip(file: string, outputDir: string, callback: () => void): void {
+  private async unzip(file: string, outputDir: string): Promise<void> {
     if (fs.existsSync(file)) {
       try {
-        const zip = new AdmZip(file);
-        zip.extractAllTo(outputDir, true);
+        await extract(file, { dir: outputDir });
       } catch (e) {
         this.logger.errorException(e);
       } finally {
         try {
-          fs.unlink(file, () => {
-            callback();
-          });
+          await fsp.unlink(file);
         } catch (_e2) {
-          callback();
+          // ignore
         }
       }
     }

@@ -30,12 +30,26 @@ export class Options {
     this.logger = logger;
   }
 
-  public async getSettingAsync(section: string, key: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      this.getSetting(section, key, false, (setting) => {
-        setting.error ? reject(setting.error) : resolve(setting.value);
+  public async getSettingAsync(
+    section: string,
+    key: string,
+    internal = false,
+  ): Promise<OptionSetting> {
+    return new Promise((resolve) => {
+      this.getSetting(section, key, internal, (setting) => {
+        resolve(setting);
       });
     });
+  }
+
+  public async hasApiKeyAsync(): Promise<boolean> {
+    try {
+      const apiKey = await this.getApiKeyAsync();
+      return !apiKeyInvalid(apiKey);
+    } catch (err) {
+      this.logger.warn(`Unable to check for api key: ${err}`);
+      return false;
+    }
   }
 
   public getSetting(
@@ -255,7 +269,8 @@ export class Options {
     } catch (_err) {}
 
     try {
-      const apiKey = await this.getSettingAsync('settings', 'api_key');
+      const apiKeySetting = await this.getSettingAsync('settings', 'api_key');
+      const apiKey = apiKeySetting.value;
       if (!apiKeyInvalid(apiKey)) this.cache.api_key = apiKey;
       return apiKey;
     } catch (err) {
@@ -268,22 +283,27 @@ export class Options {
 
   public async getApiKeyFromVaultCmd(): Promise<string> {
     try {
-      const apiKeyCmd = await this.getSettingAsync(
+      const apiKeyCmdSetting = await this.getSettingAsync(
         'settings',
         'api_key_vault_cmd',
       );
+      const apiKeyCmd = apiKeyCmdSetting.value;
       if (!apiKeyCmd) return '';
 
       const options = buildOptions();
       const proc = child_process.spawn(apiKeyCmd, options);
 
       let stdout = '';
-      for await (const chunk of proc.stdout) {
-        stdout += chunk;
+      if (proc.stdout) {
+        for await (const chunk of proc.stdout) {
+          stdout += chunk;
+        }
       }
       let stderr = '';
-      for await (const chunk of proc.stderr) {
-        stderr += chunk;
+      if (proc.stderr) {
+        for await (const chunk of proc.stderr) {
+          stderr += chunk;
+        }
       }
       const exitCode = await new Promise((resolve) => {
         proc.on('close', resolve);
@@ -301,30 +321,6 @@ export class Options {
       );
       return '';
     }
-  }
-
-  public getApiKey(callback: (apiKey: string | null) => void): void {
-    this.getApiKeyAsync()
-      .then((apiKey) => {
-        if (!apiKeyInvalid(apiKey)) {
-          callback(apiKey);
-        } else {
-          callback(null);
-        }
-      })
-      .catch((err) => {
-        this.logger.warn(`Unable to get api key: ${err}`);
-        callback(null);
-      });
-  }
-
-  public hasApiKey(callback: (valid: boolean) => void): void {
-    this.getApiKeyAsync()
-      .then((apiKey) => callback(!apiKeyInvalid(apiKey)))
-      .catch((err) => {
-        this.logger.warn(`Unable to check for api key: ${err}`);
-        callback(false);
-      });
   }
 
   private startsWith(outer: string, inner: string): boolean {
