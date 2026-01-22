@@ -15,8 +15,8 @@ importers:
         specifier: ^1.8.7
         version: 1.11.4(@codemirror/state@6.5.2)(@codemirror/view@6.37.2)
       which:
-        specifier: 5.0.0
-        version: 5.0.0
+        specifier: 6.0.0
+        version: 6.0.0
     devDependencies:
       '@biomejs/biome':
         specifier: 2.3.11
@@ -314,9 +314,9 @@ packages:
   w3c-keyname@2.2.8:
     resolution: {integrity: sha512-dpojBhNsCNN7T82Tm7k26A6G9ML3NkhDsnw9n/eoxSRlVBB4CEtIQ/KTCLI2Fwf3ataSXRhYFkQi3SlnFwPvPQ==}
 
-  which@5.0.0:
-    resolution: {integrity: sha512-JEdGzHwwkrbWoGOlIHqQ5gtprKGOenpDHpxE9zVR1bWbOtYRyPPHMe9FaP6x61CmNaTThSkb0DAJte5jD+DmzQ==}
-    engines: {node: ^18.17.0 || >=20.5.0}
+  which@6.0.0:
+    resolution: {integrity: sha512-f+gEpIKMR9faW/JgAgPK1D7mekkFoqbmiwvNzuhsHetni20QSgzg9Vhn0g2JSJkkfehQnqdUAx7/e15qS1lPxg==}
+    engines: {node: ^20.17.0 || >=22.9.0}
     hasBin: true
 
 snapshots:
@@ -519,6 +519,6 @@ snapshots:
 
   w3c-keyname@2.2.8: {}
 
-  which@5.0.0:
+  which@6.0.0:
     dependencies:
       isexe: 3.1.1
