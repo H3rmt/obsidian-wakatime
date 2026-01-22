@@ -33,6 +33,7 @@ jobs:
           node version-bump.mjs ${{ steps.release.outputs.tag_name }}
           git add manifest.json versions.json
           git commit -m "chore: update versions for ${{ steps.release.outputs.tag_name }}"
+          git push origin main
           git tag --delete ${{ steps.release.outputs.tag_name  }}
           git push --delete origin ${{ steps.release.outputs.tag_name  }}
           git tag ${{ steps.release.outputs.tag_name  }}
