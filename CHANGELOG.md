@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.0](https://github.com/H3rmt/obsidian-wakatime/compare/1.4.0...1.5.0) (2026-01-22)
+
+
+### Features
+
+* modernize codebases, move from callbacks to Promises ([b507e07](https://github.com/H3rmt/obsidian-wakatime/commit/b507e07a0efe7684c714f6b203dcb4d1163838c9))
+* open dashboard from the status bar ([64e3a77](https://github.com/H3rmt/obsidian-wakatime/commit/64e3a77db96c1d2f7c3c28c3bd879f4a5b9cafa6))
+* replace which dependency, add vitest tests ([b507e07](https://github.com/H3rmt/obsidian-wakatime/commit/b507e07a0efe7684c714f6b203dcb4d1163838c9))
+
+
+### Bug Fixes
+
+* **deps:** update dependency which to v6 ([15fc6b0](https://github.com/H3rmt/obsidian-wakatime/commit/15fc6b0d3759cf85d34c1ac1529364a6c5735feb))
+* fix plugin install logic and add more logging ([ef430c9](https://github.com/H3rmt/obsidian-wakatime/commit/ef430c9925a38e813b094186bf90b69d85a132ee))
+
 ## [1.4.0](https://github.com/H3rmt/obsidian-wakatime/compare/1.3.0...1.4.0) (2025-07-19)
 
 
