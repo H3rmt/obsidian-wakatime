@@ -1,6 +1,7 @@
 import * as child_process from 'node:child_process';
 import * as fs from 'node:fs';
 import * as fsp from 'node:fs/promises';
+import * as https from 'node:https';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
@@ -82,15 +83,22 @@ export class Dependencies {
     return this.cliInstalled;
   }
 
-  public async checkAndInstallCli(): Promise<void> {
+  public async checkAndInstallCli(): Promise<boolean> {
     if (!this.isCliInstalled()) {
-      await this.installCli();
+      if (!(await this.installCli())) {
+        this.logger.error('Failed to install wakatime-cli.');
+        return false;
+      }
     } else {
       const isLatest = await this.isCliLatest();
       if (!isLatest) {
-        await this.installCli();
+        if (!(await this.installCli())) {
+          this.logger.error('Failed to update wakatime-cli.');
+          return false;
+        }
       }
     }
+    return true;
   }
 
   private async isCliLatest(): Promise<boolean> {
@@ -198,35 +206,42 @@ export class Dependencies {
     return '';
   }
 
-  private async installCli(): Promise<void> {
+  private async installCli(): Promise<boolean> {
     const version = await this.getLatestCliVersion();
-    if (!version) {
-      return;
+    if (version === '') {
+      this.logger.warn('Unable to find latest wakatime-cli version');
+      return false;
     }
-    this.logger.debug(`Downloading wakatime-cli ${version}...`);
     const url = this.cliDownloadUrl(version);
     const zipFile = path.join(
       this.getResourcesLocation(),
       `wakatime-cli${this.randStr()}.zip`,
     );
-    await this.downloadFile(url, zipFile);
-    await this.extractCli(zipFile);
+    this.logger.debug(`Downloading wakatime-cli ${version} from ${url}...`);
+    if (!(await this.downloadFile(url, zipFile))) {
+      this.logger.error('Failed to download wakatime-cli from github.');
+      return false;
+    }
+    if (!(await this.extractCli(zipFile))) {
+      this.logger.error(
+        `Failed to extract wakatime-cli (${zipFile} -> ${this.getResourcesLocation()}).`,
+      );
+      return false;
+    }
+    return true;
   }
 
-  private isSymlink(file: string): boolean {
-    try {
-      return fs.lstatSync(file).isSymbolicLink();
-      // eslint-disable-next-line no-empty
-    } catch (_) {}
-    return false;
-  }
-
-  private async extractCli(zipFile: string): Promise<void> {
+  private async extractCli(zipFile: string): Promise<boolean> {
     this.logger.debug(
       `Extracting wakatime-cli into "${this.getResourcesLocation()}"...`,
     );
-    await this.removeCli();
-    await this.unzip(zipFile, this.getResourcesLocation());
+    if (!await this.removeCliIfExists()) {
+      this.logger.error('Failed to remove existing wakatime-cli.');
+      return false;
+    }
+    if (!(await this.unzip(zipFile, this.getResourcesLocation()))) {
+      this.logger.error('Failed to extract wakatime-cli.');
+    }
 
     if (!isWindows()) {
       const cli = this.getCliLocation();
@@ -237,7 +252,7 @@ export class Dependencies {
         this.logger.warnException(e);
       }
       const link = path.join(this.getResourcesLocation(), `wakatime-cli`);
-      if (!this.isSymlink(link)) {
+      if (!fs.lstatSync(link).isSymbolicLink()) {
         try {
           this.logger.debug(`Create symlink from wakatime-cli to ${cli}`);
           await fsp.symlink(cli, link);
@@ -248,47 +263,85 @@ export class Dependencies {
             await fsp.chmod(link, 0o755);
           } catch (e2) {
             this.logger.warnException(e2);
+            return false;
           }
         }
       }
     }
     this.logger.debug('Finished extracting wakatime-cli.');
+    return true;
   }
 
-  private async removeCli(): Promise<void> {
+  private async removeCliIfExists(): Promise<boolean> {
     if (fs.existsSync(this.getCliLocation())) {
       try {
         await fsp.unlink(this.getCliLocation());
+        return true;
       } catch (e) {
+        this.logger.warn(
+          `Failed to remove existing wakatime-cli at ${this.getCliLocation()}`,
+        );
         this.logger.warnException(e);
+        return false;
       }
     }
+    return true;
   }
 
-  private async downloadFile(url: string, outputFile: string): Promise<void> {
-    const options: RequestInit = {
-      method: 'GET',
+  private async downloadFile(
+    url: string,
+    outputFile: string,
+  ): Promise<boolean> {
+    const download = async (
+      urlToGet: string,
+      redirectsLeft: number,
+    ): Promise<void> => {
+      return new Promise<void>((resolve, reject) => {
+        const req = https.get(urlToGet, async (res) => {
+          const status = res.statusCode || 0;
+          if (status >= 300 && status < 400 && res.headers.location) {
+            if (redirectsLeft > 0) {
+              res.resume();
+              // small delay
+              await new Promise((r) => setTimeout(r, 1000));
+              return download(res.headers.location, redirectsLeft - 1)
+                .then(resolve)
+                .catch(reject);
+            } else {
+              return reject(new Error('Too many redirects'));
+            }
+          }
+          if (status !== 200) {
+            res.resume();
+            return reject(new Error(`Request failed. Status: ${status}`));
+          }
+          const fileStream = fs.createWriteStream(outputFile);
+          res.pipe(fileStream);
+          fileStream.on('finish', () => fileStream.close(() => resolve()));
+          fileStream.on('error', reject);
+        });
+        req.on('error', reject);
+      });
     };
+
+    const maxRedirects = 5;
     try {
-      const response = await fetch(url, options);
-      if (!response.ok) {
-        this.logger.warn(`Failed to download ${url}`);
-        this.logger.warn(`Status: ${response.status}`);
-        return;
-      }
-      const arrayBuffer = await response.arrayBuffer();
-      await fsp.writeFile(outputFile, Buffer.from(arrayBuffer));
+      await download(url, maxRedirects);
+      return true;
     } catch (e) {
       this.logger.warnException(e);
+      return false;
     }
   }
 
-  private async unzip(file: string, outputDir: string): Promise<void> {
+  private async unzip(file: string, outputDir: string): Promise<boolean> {
     if (fs.existsSync(file)) {
       try {
         await extract(file, { dir: outputDir });
+        return true;
       } catch (e) {
         this.logger.errorException(e);
+        return false;
       } finally {
         try {
           await fsp.unlink(file);
@@ -297,6 +350,7 @@ export class Dependencies {
         }
       }
     }
+    return false;
   }
 
   private architecture(): string {

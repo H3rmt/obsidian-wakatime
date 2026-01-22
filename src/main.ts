@@ -76,11 +76,18 @@ export default class WakaTime extends Plugin {
 
     await this.checkApiKey();
 
-    this.setupEventListeners();
-
     this.showCodingActivity = showCodingActivity?.value !== 'false';
 
-    await this.dependencies.checkAndInstallCli();
+    if (!(await this.dependencies.checkAndInstallCli())) {
+      this.updateStatusBarText('WakaTime Error');
+      this.updateStatusBarTooltip(
+        `WakaTime: Failed to install cli, check logs for more details.`,
+      );
+      return;
+    }
+
+    this.setupEventListeners();
+
     this.logger.debug('WakaTime initialized');
     this.updateStatusBarText();
     this.updateStatusBarTooltip('WakaTime: Initialized');
