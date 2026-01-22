@@ -1,3 +1,14 @@
 .api-key-input {
   width: 100%;
 }
+
+
+.a-no-style {
+  text-decoration: none;
+  color: inherit;
+}
+
+.a-no-style:hover {
+  text-decoration: none;
+  color: inherit;
+}

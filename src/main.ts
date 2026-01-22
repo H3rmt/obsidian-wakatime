@@ -11,17 +11,18 @@ import {
   Setting,
   type TextComponent,
 } from 'obsidian';
-import { LogLevel } from './constants';
-import { Dependencies } from './dependencies';
-import { buildOptions, isWindows } from './desktop';
-import { Logger } from './logger';
-import { Options } from './options';
-import { apiKeyInvalid, formatArguments, formatDate, quote } from './utils';
+import {LogLevel} from './constants';
+import {Dependencies} from './dependencies';
+import {buildOptions, isWindows} from './desktop';
+import {Logger} from './logger';
+import {Options} from './options';
+import {apiKeyInvalid, formatArguments, formatDate, quote} from './utils';
 
 // noinspection JSUnusedGlobalSymbols
 export default class WakaTime extends Plugin {
   options: Options;
   statusBar: HTMLElement;
+  statusBarLink: HTMLElement;
   showStatusBar: boolean;
   showCodingActivity: boolean;
   logger: Logger;
@@ -31,6 +32,8 @@ export default class WakaTime extends Plugin {
   fetchTodayInterval = 60000;
   lastFile: string;
   lastHeartbeat = 0;
+  apiUrl: string;
+  dashboardUrl: string;
 
   async onload() {
     this.logger = new Logger(LogLevel.INFO);
@@ -56,22 +59,35 @@ export default class WakaTime extends Plugin {
       return;
     }
 
-    await this.initializeDependencies();
+    // dont await, this makes starting obsidian way faster
+    this.initializeDependencies().then()
   }
 
-  onunload() {}
+  onunload() {
+  }
 
   public async initializeDependencies(): Promise<void> {
     this.logger.debug(`Initializing WakaTime v${this.manifest.version}`);
 
     this.statusBar = this.addStatusBarItem();
+    this.statusBar.addClass("mod-clickable")
 
-    const [statusBarEnabled, showCodingActivity] = await Promise.all([
+    const [apiUrl, statusBarEnabled, showCodingActivity] = await Promise.all([
+      this.options.getSettingAsync('settings', 'api_url'),
       this.options.getSettingAsync('settings', 'status_bar_enabled'),
       this.options.getSettingAsync('settings', 'status_bar_coding_activity'),
     ]);
+    this.apiUrl = apiUrl.value ?? 'https://api.wakatime.com/api/v1/';
+    this.dashboardUrl = this.apiUrl.replace(/\/api(\/.*)?$/, '') || this.apiUrl;
 
-    this.showStatusBar = statusBarEnabled?.value !== 'false';
+    if (statusBarEnabled?.value !== 'false') {
+      this.showStatusBar = true;
+      this.statusBarLink = this.statusBar.createEl('a', {
+        href: this.dashboardUrl,
+        text: '',
+        cls: 'a-no-style'
+      });
+    }
     this.updateStatusBarText('WakaTime Initializing...');
 
     await this.checkApiKey();
@@ -127,7 +143,7 @@ export default class WakaTime extends Plugin {
         cursor = view.editor.getCursor();
       }
 
-      this.sendHeartbeat(file, time, cursor?.line, cursor?.ch, false);
+      this.sendHeartbeat(file, time, cursor?.line, cursor?.ch, false).then()
       this.lastFile = file;
       this.lastHeartbeat = time;
     }
@@ -139,21 +155,22 @@ export default class WakaTime extends Plugin {
   }
 
   private updateStatusBarText(text?: string): void {
-    if (!this.statusBar) return;
+    this.logger.debug(`Updating status bar text to ${text ?? 'empty'}`);
+    if (!this.statusBarLink) return;
     if (!text) {
-      this.statusBar.setText('🕒');
+      this.statusBarLink.setText('🕒');
     } else {
-      this.statusBar.setText(`🕒 ${text}`);
+      this.statusBarLink.setText(`🕒 ${text}`);
     }
   }
 
   private updateStatusBarTooltip(tooltipText: string): void {
-    if (!this.statusBar) return;
-    this.statusBar.setAttr('title', tooltipText);
+    if (!this.statusBarLink) return;
+    this.statusBarLink.setAttr('title', tooltipText);
   }
 
   public promptForApiKey(): void {
-    new ApiKeyModal(this.app, this.options).open();
+    new ApiKeyModal(this.app, this.options, this.dashboardUrl).open();
   }
 
   private async sendHeartbeat(
@@ -353,21 +370,23 @@ export default class WakaTime extends Plugin {
 class ApiKeyModal extends Modal {
   options: Options;
   input: TextComponent;
+  dashboardUrl: string;
   private static instance: ApiKeyModal;
 
   // biome-ignore lint/correctness/noUnreachableSuper: Singleton pattern
-  constructor(app: App, options: Options) {
+  constructor(app: App, options: Options, dashboardUrl: string) {
     if (ApiKeyModal.instance) {
       // biome-ignore lint/correctness/noConstructorReturn: Singleton pattern
       return ApiKeyModal.instance;
     }
     super(app);
     this.options = options;
+    this.dashboardUrl = dashboardUrl
     ApiKeyModal.instance = this;
   }
 
   async onOpen() {
-    const { contentEl } = this;
+    const {contentEl} = this;
 
     const api_key = await this.options.getSettingAsync('settings', 'api_key');
     let defaultVal = api_key?.value || '';
@@ -375,9 +394,12 @@ class ApiKeyModal extends Modal {
       defaultVal = '';
     }
 
-    contentEl.createEl('h2', { text: 'Enter your WakaTime API Key' });
+    contentEl.createEl('h2', {text: 'Enter your WakaTime API Key'});
 
-    new Setting(contentEl).addText((text) => {
+    const fragment = new DocumentFragment();
+    const link = fragment.createEl('a', {text: 'Link', href: this.dashboardUrl});
+    fragment.appendChild(link);
+    new Setting(contentEl).setName("API KEY").setDesc(fragment).addText((text) => {
       text.setValue(defaultVal);
       text.inputEl.addClass('api-key-input');
       this.input = text;
@@ -400,7 +422,7 @@ class ApiKeyModal extends Modal {
   }
 
   onClose() {
-    const { contentEl } = this;
+    const {contentEl} = this;
     contentEl.empty();
   }
 }
