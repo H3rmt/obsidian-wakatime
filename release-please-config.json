@@ -3,7 +3,6 @@
   "always-update": true,
   "include-v-in-tag": false,
   "include-component-in-tag": false,
-  "last-release-sha": "da364a83b78c00b7c5e38651d1c4f8c1d4c08152",
   "packages": {
     ".": {
       "release-type": "node",
