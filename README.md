@@ -5,8 +5,7 @@ from your Obsidian usage activity.
 
 ### This is a fork of the [WakaTime plugin][wakatime]
 
-Install the official [WakaTime plugin][wakatime] for Obsidian and replace the files in `.obsidian` with the ones in this
-repositor.
+Install the official [WakaTime plugin][wakatime] for Obsidian and replace the files in `.obsidian` with the ones from the latest release.
 
 ## Installation
 
