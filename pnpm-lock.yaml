@@ -12,8 +12,8 @@ importers:
         specifier: 2.0.1
         version: 2.0.1
       obsidian:
-        specifier: 1.11.4
-        version: 1.11.4(@codemirror/state@6.5.2)(@codemirror/view@6.37.2)
+        specifier: 1.13.1
+        version: 1.13.1(@codemirror/state@6.5.2)(@codemirror/view@6.37.2)
     devDependencies:
       '@biomejs/biome':
         specifier: 2.3.11
@@ -513,8 +513,8 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  obsidian@1.11.4:
-    resolution: {integrity: sha512-n0KD3S+VndgaByrEtEe8NELy0ya6/s+KZ7OcxA6xOm5NN4thxKpQjo6eqEudHEvfGCeT/TYToAKJzitQ1I3XTg==}
+  obsidian@1.13.1:
+    resolution: {integrity: sha512-qtTEA2pmhJzhuhJqzbBFRYhpIOqvW+krDYjtFynv66KbxBbumHBlsJfWw3I4jtnK/6fZwbQhCrmmDdRwXmX56w==}
     peerDependencies:
       '@codemirror/state': 6.5.0
       '@codemirror/view': 6.38.6
@@ -1037,7 +1037,7 @@ snapshots:
 
   nanoid@3.3.11: {}
 
-  obsidian@1.11.4(@codemirror/state@6.5.2)(@codemirror/view@6.37.2):
+  obsidian@1.13.1(@codemirror/state@6.5.2)(@codemirror/view@6.37.2):
     dependencies:
       '@codemirror/state': 6.5.2
       '@codemirror/view': 6.37.2
